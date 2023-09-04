@@ -1,0 +1,10 @@
+# unrelated stuff
+/www
+/www2
+/wwwtest
+
+# postgres
+/pgroot
+
+# certificates
+/crt
