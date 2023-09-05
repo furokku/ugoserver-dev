@@ -7,7 +7,12 @@ import (
 )
 
 
+// Fetch the latest uploaded flipnotes.
+// 54 flipnotes are fetched, if so many exist per given offset
+// Only really 53 are shown, but the 54th is just to determine whether to
+// show the next page button
 func getLatestFlipnotes(db *sql.DB, p int) ([]flipnote, int) {
+
     var query []flipnote
     var total int
 
@@ -25,7 +30,6 @@ func getLatestFlipnotes(db *sql.DB, p int) ([]flipnote, int) {
         log.Fatalf("fetchLatestFlipnotes: %v", err)
     }
 
-    // dumb thing
     defer rows.Close()
     defer rows2.Close()
 
@@ -38,6 +42,8 @@ func getLatestFlipnotes(db *sql.DB, p int) ([]flipnote, int) {
         query = append(query, flipnote{id:id, author:author, filename:filename, uploaded_at:uploaded_at})
     }
 
+    // this returns only one row, so this is fine
+    // a failsafe should not be needed
     rows2.Next()
     rows2.Scan(&total)
 

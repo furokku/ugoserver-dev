@@ -19,9 +19,12 @@ type (
 )
 
 var (
-    tmbOffset int = 0x6A0
+    tmbOffset int = 0x6A0 // size of tmb data
+    lockOffset int = 0x10 // flipnote lock state
 )
 
+// Get the TMB for a given flipnote
+// Used for flipnote previews on menu type 2
 func getTmbData(au string, fn string) tmb {
     buf := make([]byte, tmbOffset)
     path := fmt.Sprintf("/srv/ugoserver/hatena/flipnotes/creators/%s/%s.ppm", au, fn)
@@ -44,6 +47,8 @@ func getTmbData(au string, fn string) tmb {
 }
 
 
+// return whether a flipnote is locked
+// 0 if not, 1 if it is
 func (t tmb) flipnoteIsLocked() uint {
-    return uint(t[0x10])
+    return uint( t[lockOffset] )
 }

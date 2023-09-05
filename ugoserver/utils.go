@@ -11,6 +11,7 @@ import (
 )
 
 
+// self explanatory, i think
 func randBytes(count int) []byte {
     buf := make([]byte, count)
     cryptoRand.Read(buf)
@@ -19,6 +20,7 @@ func randBytes(count int) []byte {
 }
 
 
+// self explanatory, again, i think
 func randAsciiString(count int) string {
     buf := make([]rune, count)
     for i := range buf {
@@ -84,6 +86,7 @@ func genUniqueSession() string {
 }
 
 
+// delete sessions issued 2h ago
 func pruneSessions() {
     for {
         time.Sleep(5 * time.Minute)

@@ -303,5 +303,5 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 func flipnoteHtmHandler(w http.ResponseWriter, r *http.Request) {
     log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
 
-    w.Write()
+    w.WriteHeader(http.StatusOK)
 }

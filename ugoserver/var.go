@@ -35,6 +35,7 @@ var (
     sessions = make(map[string]struct{fsid string; issued int64})
     db *sql.DB
 
+    // static variables
     chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
     regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp
 
