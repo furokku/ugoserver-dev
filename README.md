@@ -18,7 +18,7 @@ As I'm rather busy with life at the moment and succumb to burnout like anyone el
 Using [nds-constrain't](https://github.com/KaeruTeam/nds-constraint), the DS can be tricked into thinking that certificates signed using the Wii's client CA are legitimate and valid.
 
 An nginx server paired with an older version of openssl is used to accept the authentication requests made in HTTPS using SSLv3, then redirected to the main server, because nobody wants to have SSLv3 enabled on their server.
-Then a simple dnsmasq server is run to redirect queries from Nintendo's domains to my own IP.
+<br>Then a simple dnsmasq server is run to redirect queries from Nintendo's domains to my own IP.
 
 All of this is wrapped in docker (for both security and convenience) and [webproc](https://github.com/jpillora/webproc), which provides a nice web interface for viewing logs and the current loaded config file.
 
@@ -29,9 +29,9 @@ The database portion of this uses postgresql, and while I'm inexperienced in SQL
 
 ## Setup
 Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio.
-Change the ip in dnsmasq.conf to wherever you want your request redirected
-Run `docker-compose up` to start the containers
-Cd into `ugoserver/` and start the go server
+<br>Change the ip in dnsmasq.conf to wherever you want your request redirected
+<br>Run `docker-compose up` to start the containers
+<br>Cd into `ugoserver/` and start the go server
 
 Flipnote studio should now be able to connect to your replacement hatena server.
 
@@ -56,6 +56,6 @@ If you have original flipnote hatena captures, that would be SUPER helpful. Plea
 
 ## Credits & Thanks
 [hatena-server](https://github.com/pbsds/hatena-server) - pbsds
-[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project KaeruTeam
-Extensive flipnote format documentation [here](https://github.com/Flipnote-Collective/flipnote-studio-docs/wiki) and [here](https://github.com/pbsds/hatena-server/wiki)
-and others...
+<br>[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project KaeruTeam
+<br>Extensive flipnote format documentation [here](https://github.com/Flipnote-Collective/flipnote-studio-docs/wiki) and [here](https://github.com/pbsds/hatena-server/wiki)
+<br>and likely others...

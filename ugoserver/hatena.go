@@ -83,7 +83,7 @@ func hatenaAuthHandler(w http.ResponseWriter, r *http.Request) {
 //  vars := mux.Vars(r)
 
     // verify region in auth url is correct
-    // mux inline regex ~~should~~ works so this can be commented out
+    // mux inline regex works so this can be commented out
 //  if !slices.Contains(regions, vars["reg"]) {
 //      http.Error(w, "invalid region", http.StatusNotFound)
 //      log.Printf("response 404 (invalid region) at %v%v", r.Host, r.URL.Path)
@@ -97,12 +97,15 @@ func hatenaAuthHandler(w http.ResponseWriter, r *http.Request) {
     // correction: initial rev of flipnote studio sends
     // two GET requests, will need to consider later
     // how to handle that
+    //
+    // Likely wont
     case "GET":
 
         // seems like it's used to handle some sort of
         // server-wide notifications, as opposed to
         // user-specific ones which could be set later
-        // TODO: this, maybe
+        // TODO: Maybe this but seems unnecessary
+        // Could be read from database if implemented
         const serverUnread int = 0
 
         if (serverUnread != 0) && (serverUnread != 1) {
@@ -114,6 +117,8 @@ func hatenaAuthHandler(w http.ResponseWriter, r *http.Request) {
         }
 
         // TODO: validate auth challenge
+        // I know it has something to do with XOR keys
+        // but is it really needed? probably not
         w.Header()["X-DSi-Auth-Challenge"] = []string{randAsciiString(8)}
         w.Header()["X-DSi-SID"] = []string{genUniqueSession()}
 
@@ -124,7 +129,9 @@ func hatenaAuthHandler(w http.ResponseWriter, r *http.Request) {
             id:       r.Header.Get("X-Dsi-Id"), // FSID
             auth:     r.Header.Get("X-Dsi-Auth-Response"),
             sid:      r.Header.Get("X-Dsi-Sid"),
-            ver:      r.Header.Get("X-Ugomemo-Version"), // should be V2
+            ver:      r.Header.Get("X-Ugomemo-Version"), // it could be made so that only V2 is
+                                                         // accepted for this header, but the region
+                                                         // thing pretty much does that already
             username: r.Header.Get("X-Dsi-User-Name"),
             region:   r.Header.Get("X-Dsi-Region"),
             lang:     r.Header.Get("X-Dsi-Lang"),
@@ -170,6 +177,7 @@ func ugoHandler(w http.ResponseWriter, r *http.Request) {
 
     if r.Method != "GET" {
         // this should only really receive GET requests
+        // unless I find out otherwise
         http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
         log.Printf("response 405 at %v%v", r.Host, r.URL.Path)
         return
@@ -199,6 +207,12 @@ func returnFromFs(w http.ResponseWriter, r *http.Request) {
     // that were preferable for me so i am
     // manually checking if files exist and returning them
     // on a per-url basis
+    //
+    // TODO: The eula and etc files should probably be read and stored
+    // in a buffer within the server
+    // That would allow the base files to be in utf8 and get rid of
+    // essentially the empty folders that are in
+    // hatena/static/ds/ and get rid of this
     data, err := os.ReadFile(strings.Join([]string{staticUrl, r.URL.Path}, ""))
     if err != nil {
         http.Error(w, "not found", http.StatusNotFound)
@@ -229,16 +243,20 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
 
         page, err := strconv.Atoi(r.URL.Query().Get("page"))
         if err != nil {
+            // When the page isn't specified this should be expected
+            // TODO: get rid of this under above condition
             log.Printf("invalid page passed to %v%v: %v", r.Host, r.URL.Path, err)
             page = 1
         }
 
+        // TODO: Hot / most liked flipnotes
         switch vars["type"] {
         case "recent":
             pageName = "Recent"
             flipnotes, total = getLatestFlipnotes(db, page)
         }
 
+        // Add top screen titles
         base.entries = append(base.entries, menuEntry{
             entryType: 1,
             data: []string{
@@ -248,7 +266,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
             },
         })
         base.entries = append(base.entries, menuEntry{
-            entryType: 2,
+            entryType: 2, // category
             data: []string{
                 "http://flipnote.hatena.com/front/recent.uls",
                 base64.RawStdEncoding.EncodeToString(encUTF16LE("@" + pageName)),
@@ -275,6 +293,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
             //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
         }
 
+        // TODO: add previous/next page buttons
         data := base.Pack()
 
         //fmt.Println(string(data))

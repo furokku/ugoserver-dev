@@ -50,5 +50,12 @@ func getTmbData(au string, fn string) tmb {
 // return whether a flipnote is locked
 // 0 if not, 1 if it is
 func (t tmb) flipnoteIsLocked() uint {
-    return uint( t[lockOffset] )
+    l := uint(t[ lockOffset ])
+
+    if l != 0 && l != 1 {
+        log.Printf("flipnoteIsLocked: WARNING: invalid lock state; returning 0")
+        return 0
+    } else {
+        return l
+    }
 }
