@@ -8,3 +8,5 @@
 
 # certificates
 /crt
+
+go.sum

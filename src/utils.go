@@ -22,6 +22,8 @@ func randBytes(count int) []byte {
 
 // self explanatory, again, i think
 func randAsciiString(count int) string {
+    chars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+
     buf := make([]rune, count)
     for i := range buf {
         buf[i] = chars[rand.Intn(len(chars))]
@@ -87,7 +89,7 @@ func genUniqueSession() string {
 
 
 // delete sessions issued 2h ago
-func pruneSessions() {
+func pruneSids() {
     for {
         time.Sleep(5 * time.Minute)
 
@@ -107,7 +109,7 @@ func pruneSessions() {
 // in the result
 func countPages(t int) int {
     pages := t / 54
-    if n := pages % 54; n > 0 {
+    if t % 54 > 0 {
         pages += 1
     }
 
@@ -118,20 +120,4 @@ func countPages(t int) int {
 // find offset for sql query based on current page
 func findOffset(p int) int {
     return (p - 1) * 54
-}
-
-
-// 4 byte padding for ugomenus
-func padBytes(d []byte) []byte {
-    var padded []byte = d
-
-    if x := len(d) % 4; x != 0 {
-        for i := 0; i < (4-x); i++ {
-            padded = append(padded, nul)
-        }
-
-        return padded
-    }
-
-    return d
 }

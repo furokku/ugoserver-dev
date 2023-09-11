@@ -2,7 +2,7 @@ package main
 
 import (
     "encoding/base64"
-    "database/sql"
+    "floc/ugoserver/ugo"
 )
 
 // should be self-explanatory
@@ -24,45 +24,38 @@ type (
 
 )
 
-// an anonymous struct is better for this
-//type fsidSession struct {
-//    fsid   string
-//    issued int64
-//}
+const (
+    enableNas = false
+    txtPath = "/srv/src/txt/"
+)
 
 var (
     // database stuff
     sessions = make(map[string]struct{fsid string; issued int64})
-    db *sql.DB
 
-    // static variables
-    chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+    // things
     regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp
-
-    // for readability in ugo.go
-    newline byte = 0x0A
-    tab     byte = 0x09
-    nul     byte = 0x00
+    txtFiles = []string{"eula", "upload", "delete", "download"}
 
     // template/static ugomenus
-    indexUGO = ugomenu{
-        entries: []menuEntry{
+    indexUGO = ugo.Ugomenu{
+        Entries: []ugo.MenuEntry{
             {
-                entryType: 0,
-                data: []string{
+                EntryType: 0,
+                Data: []string{
                     "0",
                 },
             }, {
-                entryType: 4,
-                data: []string{
+                EntryType: 4,
+                Data: []string{
                     "http://flipnote.hatena.com/front/recent.uls",
                     "103",
                     base64.StdEncoding.EncodeToString(encUTF16LE("Browse flipnotes")),
                 },
             },
             {
-                entryType: 4,
-                data: []string{
+                EntryType: 4,
+                Data: []string{
                     "http://flipnote.hatena.com/ds/v2-us/test.uls",
                     "104",
                     base64.StdEncoding.EncodeToString(encUTF16LE("test(ing)")),
@@ -71,11 +64,11 @@ var (
         },
     }
 
-    fpBase = ugomenu{
-        entries: []menuEntry{
+    frontBaseUGO = ugo.Ugomenu{
+        Entries: []ugo.MenuEntry{
             {
-                entryType: 0,
-                data: []string{
+                EntryType: 0,
+                Data: []string{
                     "2",
                 },
             },

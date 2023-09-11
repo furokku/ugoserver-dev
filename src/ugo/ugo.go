@@ -1,37 +1,45 @@
-package main
+package ugo
 
 import (
     "fmt"
     "encoding/binary"
 )
 
-type ugomenu struct {
-    entries []menuEntry
-    embed [][]byte
+const magic string = "UGAR"
+
+var (
+    // for readability
+    newline byte = 0x0A
+    tab     byte = 0x09
+    nul     byte = 0x00
+)
+
+type Ugomenu struct {
+    Entries []MenuEntry
+    Embed [][]byte
 }
 
-type menuEntry struct {
-    entryType uint
-    data []string
+type MenuEntry struct {
+    EntryType uint
+    Data []string
 }
 
 
-// build ugomenu to be able to return from w.Write
-func (u ugomenu) Pack() []byte {
+// compile ugomenu to array of bytes
+func (u Ugomenu) Pack() []byte {
 
     var header, menus, embedded []byte
     sections := 1 // there is always at least one section
     emb := false
-    magic := "UGAR"
 
     // an ugomenu must have this section
-    for _, item := range u.entries {
+    for _, item := range u.Entries {
         menus = append(menus, newline)
-        menus = append(menus, fmt.Sprint(item.entryType)...)
+        menus = append(menus, fmt.Sprint(item.EntryType)...)
 
-        for n := range item.data {
+        for n := range item.Data {
             menus = append(menus, tab)
-            menus = append(menus, item.data[n]...)
+            menus = append(menus, item.Data[n]...)
         }
     }
 
@@ -39,8 +47,10 @@ func (u ugomenu) Pack() []byte {
 
     // embedded content can be omitted, but is required
     // for things like custom icons or layout 2
-    if len(u.embed) != 0 {
-        for _, embed := range u.embed {
+    //
+    // Should be ntft or tmb
+    if len(u.Embed) != 0 {
+        for _, embed := range u.Embed {
             embedded = append(embedded, embed...)
         }
 
@@ -50,11 +60,24 @@ func (u ugomenu) Pack() []byte {
         sections = 2
     }
 
-    // needs to be little endian because dsi
+    // Has to be little endian byte order
     header = append(header, magic...)
     header = binary.LittleEndian.AppendUint32(header, uint32(sections))
     header = binary.LittleEndian.AppendUint32(header, uint32(len(menus)))
     if emb { header = binary.LittleEndian.AppendUint32(header, uint32(len(embedded))) }
     
     return append(header, append(menus, embedded...)...)
+}
+
+
+// 4 byte padding for ugomenus
+func padBytes(d []byte) []byte {
+    var padded []byte = d
+
+    if x := len(d) % 4; x != 0 {
+        for i := 0; i < (4-x); i++ {
+            padded = append(padded, nul)
+        }
+    }
+    return padded
 }
