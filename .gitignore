@@ -3,10 +3,11 @@
 /www2
 /wwwtest
 
-# postgres
+# you should create these
+# dirs yourself
 /pgroot
-
-# certificates
 /crt
+/hatena_storage
 
+# go
 go.sum

@@ -112,12 +112,12 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
         })
 
         for _, f := range flipnotes {
-            tempTmb := getTmbData(f.author, f.filename)
+            tempTmb := getTmbData(f.filename)
 
             base.Entries = append(base.Entries, ugo.MenuEntry{
                 EntryType: 4,
                 Data: []string{
-                    fmt.Sprintf("http://flipnote.hatena.com/flipnotes/creators/%s/%s.ppm", f.author, f.filename),
+                    fmt.Sprintf("http://flipnote.hatena.com/flipnotes/%s.ppm", f.filename),
                     "3",
                     "0",
                     "42", // star counter (TODO)

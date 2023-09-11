@@ -25,9 +25,9 @@ var (
 
 // Get the TMB for a given flipnote
 // Used for flipnote previews on menu type 2
-func getTmbData(au string, fn string) tmb {
+func getTmbData(fn string) tmb {
     buf := make([]byte, tmbOffset)
-    path := fmt.Sprintf("/srv/ugoserver/hatena/flipnotes/creators/%s/%s.ppm", au, fn)
+    path := fmt.Sprintf("/srv/hatena_storage/flipnotes/%s.ppm", fn)
 
     file, err := os.Open(path)
     if err != nil {
@@ -49,8 +49,8 @@ func getTmbData(au string, fn string) tmb {
 
 // return whether a flipnote is locked
 // 0 if not, 1 if it is
-func (t tmb) flipnoteIsLocked() uint {
-    l := uint(t[ lockOffset ])
+func (t tmb) flipnoteIsLocked() int {
+    l := int(t[ lockOffset ])
 
     if l != 0 && l != 1 {
         log.Printf("flipnoteIsLocked: WARNING: invalid lock state; returning 0")
