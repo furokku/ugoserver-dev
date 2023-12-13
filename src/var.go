@@ -26,7 +26,7 @@ type (
 
 const (
     enableNas = true
-    txtPath = "/srv/src/txt/"
+    txtPath = "/srv/txt/"
     dataPath = "/srv/hatena_storage/"
 )
 
