@@ -86,7 +86,16 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             w.Write(encUTF16LE("error authenticating!"))
             return
         } else {
-            sessions[req.sid] = struct{fsid string; issued int64}{fsid: req.id, issued: time.Now().Unix()}
+            sessions[req.sid] = struct{
+                fsid string
+                username string
+                issued int64
+            } {
+                fsid: req.id,
+                username: decReqUsername(req.username),
+                issued: time.Now().Unix(),
+            }
+
             w.Header()["X-DSi-SID"] = []string{req.sid}
 
             // TODO: handle on per user basis

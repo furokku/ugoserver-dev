@@ -69,27 +69,30 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
-    h.Path("/ds/{reg}/{lang}/{file}.txt").Methods("GET").HandlerFunc(eulaHandler)
-    h.Path("/ds/{reg}/{lang}/confirm/{file}.txt").Methods("GET").HandlerFunc(eulaHandler)
+    h.Path("/ds/{reg}/{lang}/{file}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg}/{lang}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula)
 
-    h.Path("/ds/{reg}/{file}.txt").Methods("GET").HandlerFunc(eulaHandler) // v2
-    h.Path("/ds/{reg}/confirm/{file}.txt").Methods("GET").HandlerFunc(eulaHandler) // v2
+    h.Path("/ds/{reg}/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    h.Path("/ds/{reg}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
 
-    h.Path("/ds/{reg}/{ugo}.ugo").Methods("GET").HandlerFunc(ugoHandler)
+    h.Path("/ds/{reg}/{ugo}.ugo").Methods("GET").HandlerFunc(handleUgo)
     h.Path("/ds/{reg}/{file}.htm").Methods("GET").HandlerFunc(returnFromFs)
 
     // return a built ugo file with flipnotes
-    h.Path("/front/{type:(?:recent|hot|liked)}.ugo").Methods("GET").HandlerFunc(serveFrontPage(db))
+    h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage(db))
+
+    h.Path("/ds/{reg}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote(db))
+    h.Path("/ds/{reg}/movie/{filename}.ppm").Methods("POST").HandlerFunc(postFlipnote(db))
 
     // stuff
     h.Path("/flipnotes/{filename}.ppm").Methods("GET").HandlerFunc(returnFromFs)
-    h.Path("/flipnotes/{filename}.htm").Methods("GET").HandlerFunc(logRequest)
-    h.Path("/flipnotes/{filename}.info").Methods("GET").HandlerFunc(infoHandler)
+    h.Path("/flipnotes/{filename}.htm").Methods("GET").HandlerFunc(sendWip)
+    h.Path("/flipnotes/{filename}.info").Methods("GET").HandlerFunc(handleInfo)
 
     n.HandleFunc("/", nasAuth)
 
     // define servers
-    nas := &http.Server{Addr: "9001", Handler: n}
+    nas := &http.Server{Addr: ":9001", Handler: n}
     hatena := &http.Server{Addr: ":9000", Handler: h}
 
     // start on separate thread

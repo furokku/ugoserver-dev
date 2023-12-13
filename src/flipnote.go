@@ -19,15 +19,15 @@ type (
 )
 
 var (
-    tmbOffset int = 0x6A0 // size of tmb data
+    tmbSize int = 0x6A0 // size of tmb data
     lockOffset int = 0x10 // flipnote lock state
 )
 
 // Get the TMB for a given flipnote
 // Used for flipnote previews on menu type 2
 func getTmbData(fn string) tmb {
-    buf := make([]byte, tmbOffset)
-    path := fmt.Sprintf("/srv/hatena_storage/flipnotes/%s.ppm", fn)
+    buf := make([]byte, tmbSize)
+    path := fmt.Sprintf(dataPath + "flipnotes/%s.ppm", fn)
 
     file, err := os.Open(path)
     if err != nil {
@@ -39,7 +39,7 @@ func getTmbData(fn string) tmb {
     n, err := file.Read(buf)
     if err != nil {
         log.Fatalf("getTmbData: %v", err)
-    } else if n != tmbOffset {
+    } else if n != tmbSize {
         log.Printf("getTmbData: WARNING: read %v bytes instead of 1696", n)
     }
 

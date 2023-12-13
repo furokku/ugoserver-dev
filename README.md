@@ -1,7 +1,7 @@
 # UGOSERVER
 
 ## what the hell is this ???
-This is a little side/hobby project I've taken on after not being satisfied with the current state of pbsds' hatena-server.
+This is a little side/hobby project I've taken on after not being satisfied with the current state of pbsds' hatena-server. Besides, the dependency on Sudomemo's DNS and authentication server and its implementation in hatena-server makes my head hurt.
 
 The code may be messy, as I am a novice programmer in Go and this is my first real project in it.
 
@@ -28,10 +28,11 @@ The database portion of this uses postgresql, and while I'm inexperienced in SQL
 
 
 ## Setup
-Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio.
-<br>Change the ip in dnsmasq.conf to wherever you want your request redirected
-<br>Run `docker-compose up` to start the containers
-<br>Cd into `ugoserver/` and start the go server
+* Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio.
+* Change the ip in dnsmasq.conf and proxy.conf to wherever you want your request redirected
+* Run `docker-compose up` to start the containers
+* Cd into `src/` and start the go server
+* Set the dns on your DSi to point to the server's ip
 
 Flipnote studio should now be able to connect to your replacement hatena server.
 
@@ -39,9 +40,9 @@ Flipnote studio should now be able to connect to your replacement hatena server.
 ## Notes
 Some things I observed while developing this are available in notes.md, and contains status quo on some features.
 
-The txt files in ugoserver/hatena/static/ds/v2-xx/ should be UTF-16LE, otherwise the DS will not show any text. In vim this can be achieved by setting fileencoding to utf-16le and saving the file.
-
-`ugoserver/hatena/static/ds/v2-xx` should be symlinked to regions you want to enable. v2-us, v2-eu and v2-jp can be inferred from the name, v2 is the initial rev2 release of flipnote studio in japan.
+> The txt files in ugoserver/hatena/static/ds/v2-xx/ should be UTF-16LE, otherwise the DS will not show any text. In vim this can be achieved by setting fileencoding to utf-16le and saving the file.<br>
+> `ugoserver/hatena/static/ds/v2-xx` should be symlinked to regions you want to enable. v2-us, v2-eu and v2-jp can be inferred from the name, v2 is the initial rev2 release of flipnote studio in japan.<br>
+No longer the case because I made it not in a stupid way. Just edit the files in `srv/txt/` if you want to change any static text data sent by the server, or edit the list in var.go if you want to enable/disable a region
 
 I probably should've used git to log changes before I made this public, but that's whatever
 
@@ -56,6 +57,7 @@ If you have original flipnote hatena captures, that would be SUPER helpful. Plea
 
 ## Credits & Thanks
 [hatena-server](https://github.com/pbsds/hatena-server) - pbsds
-<br>[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project KaeruTeam
+<br> Original flipnote hatena dumps (thank you a lot!) - pbsds
+<br>[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project Kaeru
 <br>Extensive flipnote format documentation [here](https://github.com/Flipnote-Collective/flipnote-studio-docs/wiki) and [here](https://github.com/pbsds/hatena-server/wiki)
 <br>and likely others...

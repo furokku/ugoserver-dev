@@ -1,6 +1,7 @@
 package main
 
 import (
+    "fmt"
     "time"
     "log"
     "encoding/base64"
@@ -61,16 +62,48 @@ func encode(data any) string {
 
 
 // For error messages and labels
-func encUTF16LE(str string) []byte {
+func encUTF16LE(data any) []byte {
     utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
 
-    encoded, err := utf16.Bytes([]byte(str))
+    var encoded []byte
+    var err error
+
+    switch data := data.(type) {
+    case string:
+        encoded, err = utf16.Bytes([]byte(data))
+    case []byte:
+        encoded, err = utf16.Bytes(data)
+    }
     if err != nil {
-        log.Printf("error encoding string to utf-16le %v with error %v", str, err)
+        log.Printf("error encoding string to utf-16le %v", err)
         return []byte{}
     }
 
     return encoded
+}
+
+
+func decUTF16LE(data []byte) []byte {
+    utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+
+    decoded, err := utf16.Bytes(data)
+    if err != nil {
+        log.Printf("error decoding utf16le data %v", err)
+        return []byte{}
+    }
+
+    return decoded
+}
+
+
+func decReqUsername(username string) string {
+    utf16, err := base64.RawStdEncoding.DecodeString(username)
+    if err != nil {
+        log.Printf("decReqUsername(): failed to decode string %v with error %v", username, err)
+        return ""
+    }
+
+    return string(decUTF16LE(utf16))
 }
 
 
@@ -81,10 +114,9 @@ func genUniqueSession() string {
     for {
         sid = randAsciiString(32)
         if _, ok := sessions[sid]; !ok {
-            break
+            return sid
         }
     }
-    return sid
 }
 
 
@@ -108,8 +140,8 @@ func pruneSids() {
 // based on total amount of flipnotes
 // in the result
 func countPages(t int) int {
-    pages := t / 54
-    if t % 54 > 0 {
+    pages := t / 50
+    if t % 50 > 0 {
         pages += 1
     }
 
@@ -119,5 +151,16 @@ func countPages(t int) int {
 
 // find offset for sql query based on current page
 func findOffset(p int) int {
-    return (p - 1) * 54
+    return (p - 1) * 50
+}
+
+
+func editCountPad(count uint16) string {
+
+    if count > 999 {
+        log.Printf("editCountPad(): error: edit count larger than 999 (%v), setting to 0", count)
+        return "000"
+    }
+
+    return fmt.Sprintf("%03d", count)
 }

@@ -25,13 +25,14 @@ type (
 )
 
 const (
-    enableNas = false
+    enableNas = true
     txtPath = "/srv/src/txt/"
+    dataPath = "/srv/hatena_storage/"
 )
 
 var (
     // database stuff
-    sessions = make(map[string]struct{fsid string; issued int64})
+    sessions = make(map[string]struct{fsid string; username string; issued int64})
 
     // things
     regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp
@@ -45,20 +46,21 @@ var (
                 Data: []string{
                     "0",
                 },
-            }, {
+            },
+            {
                 EntryType: 4,
                 Data: []string{
                     "http://flipnote.hatena.com/front/recent.uls",
-                    "103",
-                    base64.StdEncoding.EncodeToString(encUTF16LE("Browse flipnotes")),
+                    "100",
+                    base64.StdEncoding.EncodeToString(encUTF16LE("Browse Flipnotes")),
                 },
             },
             {
                 EntryType: 4,
                 Data: []string{
-                    "http://flipnote.hatena.com/ds/v2-us/test.uls",
-                    "104",
-                    base64.StdEncoding.EncodeToString(encUTF16LE("test(ing)")),
+                    "ugomemo://postmemo",
+                    "102",
+                    base64.RawStdEncoding.EncodeToString(encUTF16LE("Post a Flipnote")),
                 },
             },
         },
