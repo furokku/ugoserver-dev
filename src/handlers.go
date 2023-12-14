@@ -111,7 +111,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
         base.Entries = append(base.Entries, ugo.MenuEntry{
             EntryType: 2, // category
             Data: []string{
-                "http://flipnote.hatena.com/front/recent.uls",
+                serverUrl + "/front/recent.uls",
                 base64.RawStdEncoding.EncodeToString(encUTF16LE("@" + pageType)),
                 "1",
             },
@@ -121,7 +121,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
             base.Entries = append(base.Entries, ugo.MenuEntry{
                 EntryType: 4,
                 Data: []string{
-                    fmt.Sprintf("http://flipnote.hatena.com/front/%v.uls?page=%v", pageType, page-1),
+                    fmt.Sprintf(serverUrl + "/front/%v.uls?page=%v", pageType, page-1),
                     "100",
                     base64.RawStdEncoding.EncodeToString(encUTF16LE("Previous page")),
                 },
@@ -134,7 +134,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
             base.Entries = append(base.Entries, ugo.MenuEntry{
                 EntryType: 4,
                 Data: []string{
-                    fmt.Sprintf("http://flipnote.hatena.com/flipnotes/%s.ppm", f.filename),
+                    fmt.Sprintf(serverUrl + "/flipnotes/%s.ppm", f.filename),
                     "3",
                     "0",
                     "0", // star counter (TODO)
@@ -193,7 +193,7 @@ func sendWip(w http.ResponseWriter, r *http.Request) {
     log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
 
     vars := mux.Vars(r)
-    ppmPath := "http://flipnote.hatena.com/flipnotes/" + vars["filename"] + ".ppm"
+    ppmPath := serverUrl + "/flipnotes/" + vars["filename"] + ".ppm"
 
     w.Write([]byte("<html><head><meta name=\"upperlink\" content=\"" + ppmPath + "\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"" + ppmPath + "\"></head><body><p>wip<br>obviously this would be unfinished</p></body></html>"))
 }

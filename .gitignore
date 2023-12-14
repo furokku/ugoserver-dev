@@ -4,6 +4,9 @@
 /crt
 /hatena_storage
 
+# binary file
+src/ugoserver
+
 # go
 go.sum
 

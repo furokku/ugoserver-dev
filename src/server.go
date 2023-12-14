@@ -92,8 +92,8 @@ func main() {
     n.HandleFunc("/", nasAuth)
 
     // define servers
-    nas := &http.Server{Addr: ":9001", Handler: n}
-    hatena := &http.Server{Addr: ":9000", Handler: h}
+    nas := &http.Server{Addr: listen + ":9001", Handler: n}
+    hatena := &http.Server{Addr: listen + ":9000", Handler: h}
 
     // start on separate thread
     go func() {

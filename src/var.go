@@ -25,17 +25,30 @@ type (
 )
 
 const (
+    // enable the NAS functionality in the server
+    // recommended to use wiimmfi
     enableNas = true
+
+    // sane default paths for commonly accessed things
     txtPath = "/srv/hatena/txt/"
     dataPath = "/srv/hatena/hatena_storage/"
+    serverUrl = "http://flipnote.hatena.com"
+
+    // ip to allow connections from
+    // by default set to allow every connection,
+    // regardless of origin
+    listen = "0.0.0.0"
 )
 
 var (
-    // database stuff
+    // Map to store flipnote sessions in
     sessions = make(map[string]struct{fsid string; username string; issued int64})
 
-    // things
-    regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp
+    // only the regions that are listed can be accessed thru /ds/xxxxx/foo/bar
+    regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp (?)
+
+    // eula files that should be returned by handleEula()
+    // TODO: remove, add to function directly or to unified config file
     txtFiles = []string{"eula", "upload", "delete", "download"}
 
     // template/static ugomenus
@@ -50,7 +63,7 @@ var (
             {
                 EntryType: 4,
                 Data: []string{
-                    "http://flipnote.hatena.com/front/recent.uls",
+                    serverUrl + "/front/recent.uls",
                     "100",
                     base64.StdEncoding.EncodeToString(encUTF16LE("Browse Flipnotes")),
                 },
