@@ -1,13 +1,6 @@
-# unrelated stuff
-/www
-/www2
-/wwwtest
-/http
-/deluge
 
 # you should create these
 # dirs yourself
-/pgroot
 /crt
 /hatena_storage
 

@@ -45,8 +45,6 @@ func returnFromFs(w http.ResponseWriter, r *http.Request) {
 
     log.Printf("received %v request to %v%v with header %v\n", r.Method, r.Host, r.URL, r.Header)
 
-    fsPath := "/srv/hatena_storage"
-
     // Why did I even do this this way?
     // This is stupid and should be replaced with
     // a different handler entirely
@@ -61,7 +59,7 @@ func returnFromFs(w http.ResponseWriter, r *http.Request) {
     // hatena/static/ds/ and get rid of some code i dont like
     //
     // done
-    data, err := os.ReadFile(fsPath + r.URL.Path)
+    data, err := os.ReadFile(dataPath + r.URL.Path)
     if err != nil {
         http.Error(w, "not found", http.StatusNotFound)
         log.Printf("response 404 at %v%v (file handler): %v", r.Host, r.URL.Path, err)

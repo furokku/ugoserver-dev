@@ -22,19 +22,22 @@ An nginx server paired with an older version of openssl is used to accept the au
 
 All of this is wrapped in docker (for both security and convenience) and [webproc](https://github.com/jpillora/webproc), which provides a nice web interface for viewing logs and the current loaded config file.
 
-Some paths will have to be changed because they are hardcoded, like `/srv/` to whatever you want.
+Some paths will have to be changed because they are hardcoded, like `/srv/hatena` to whatever you want.
+<br>I think it's a more or less sane default, so that's what I use
 
 The database portion of this uses postgresql, and while I'm inexperienced in SQL, the features that it offers seem good to me vs the minor learning curve.
 
 
 ## Setup
+* Install and create a postgresql database called `ugo`. The default table is called `flipnotes` with values (id serial primary key; author\_id varchar(16) not null; filename varchar(24) not null, uploaded\_at timestamp default now() )
 * Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio.
 * Change the ip in dnsmasq.conf and proxy.conf to wherever you want your request redirected
 * Run `docker-compose up` to start the containers
 * Cd into `src/` and start the go server
-* Set the dns on your DSi to point to the server's ip
+* Set the dns on your console to the server's ip
 
-Flipnote studio should now be able to connect to your replacement hatena server.
+It's recommended to configure http authentication for webproc if you're exposing this to the internet.
+<br>Flipnote studio should now be able to connect to your replacement hatena server.
 
 
 ## Notes
@@ -42,7 +45,7 @@ Some things I observed while developing this are available in notes.md, and cont
 
 > The txt files in ugoserver/hatena/static/ds/v2-xx/ should be UTF-16LE, otherwise the DS will not show any text. In vim this can be achieved by setting fileencoding to utf-16le and saving the file.<br>
 > `ugoserver/hatena/static/ds/v2-xx` should be symlinked to regions you want to enable. v2-us, v2-eu and v2-jp can be inferred from the name, v2 is the initial rev2 release of flipnote studio in japan.<br>
-No longer the case because I made it not in a stupid way. Just edit the files in `srv/txt/` if you want to change any static text data sent by the server, or edit the list in var.go if you want to enable/disable a region
+No longer the case because I made it not in a stupid way. Just edit the files in `txt/` if you want to change any static text data sent by the server, or edit the list in var.go if you want to enable/disable a region
 
 I probably should've used git to log changes before I made this public, but that's whatever
 

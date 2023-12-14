@@ -26,8 +26,8 @@ type (
 
 const (
     enableNas = true
-    txtPath = "/srv/txt/"
-    dataPath = "/srv/hatena_storage/"
+    txtPath = "/srv/hatena/txt/"
+    dataPath = "/srv/hatena/hatena_storage/"
 )
 
 var (
