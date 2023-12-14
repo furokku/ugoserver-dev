@@ -25,7 +25,7 @@ services:
       - /srv/crt:/crt:ro
       - /srv/nginx.conf:/etc/nginx/nginx.conf:ro
       - /srv/proxy.conf:/etc/nginx/conf.d/proxy.conf:ro
-      - /srv/entrypoint/nginx.sh:/entrypoint.sh
+      - /srv/entrypoint/nginx.sh:/entrypoint.sh:ro
     ports:
       - "80:80"
       - "443:443"
