@@ -1,8 +1,9 @@
 
 # you should create these
 # dirs yourself
-/crt
-/hatena_storage
+crt/
+hatena_storage/
+.httpenv
 
 # binary file
 src/ugoserver
@@ -11,4 +12,4 @@ src/ugoserver
 go.sum
 
 # misc
-/raw
+raw/
