@@ -4,6 +4,7 @@ import (
     _ "github.com/lib/pq"
     "database/sql"
 
+    "fmt"
     "log"
 
     "github.com/gorilla/mux"
@@ -21,8 +22,11 @@ func main() {
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Kill, os.Interrupt)
 
+    dbCfg := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+                         "localhost", 5432, os.Getenv("DBUSER"), os.Getenv("DBPASS"), "ugo")
+
     // connect to database
-    db, err := sql.Open("postgres", "postgresql://furokku:passwd@localhost/ugo?sslmode=disable")
+    db, err := sql.Open("postgres", dbCfg)
     if err != nil {
         log.Fatalf("failed to open database (sql.Open): %v", err)
     } else if err := db.Ping(); err != nil {
