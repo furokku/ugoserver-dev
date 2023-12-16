@@ -12,7 +12,8 @@ Why not?
 
 ## when ???
 As I'm rather busy with life at the moment and succumb to burnout like anyone else does, commits may be few and far between, but I try to work on this whenever I feel I can. No guarantees/ETAs for completeness or features are made.
-
+<br>
+As of right now, viewing and uploading flipnotes works. Currently I'd like to add support for mail, sorting by hot/top flipnotes, comments/user account system and a pleasing website for it, but that's TBD
 
 ## how ???
 Using [nds-constrain't](https://github.com/KaeruTeam/nds-constraint), the DS can be tricked into thinking that certificates signed using the Wii's client CA are legitimate and valid.
@@ -29,23 +30,20 @@ The database portion of this uses postgresql, and while I'm inexperienced in SQL
 
 
 ## Setup
-* Install and create a postgresql database called `ugo`. The default table is called `flipnotes` with values (id serial primary key; author\_id varchar(16) not null; filename varchar(24) not null, uploaded\_at timestamp default now() )
-* Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio.
+READ: if you plan to run this on an ARM vps (like oracle's free tier), the nginx docker container will not work! This is because alpine:3.4, the last docker image that ships an openssl binary which supports SSLv3 without too much hassle, does not have ARM images! Make sure you have somewhere else to run it.
+* Install postgresql and create a database called `ugo`. The default table is called `flipnotes` with values (id serial primary key; author\_id varchar(16) not null; filename varchar(24) not null, uploaded\_at timestamp default now() )
+* Create a certificate for your server using the commands in the nds-constraint github repo linked below, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio
 * Change the ip in dnsmasq.conf and proxy.conf to wherever you want your request redirected
 * Run `docker-compose up` to start the containers
-* Cd into `src/` and start the go server
-* Set the dns on your console to the server's ip
+* Start the Go server, and don't forget to add the DBUSER and DBPASS environment variables in order to be able to connect to the database
+* Set the primary DNS on your console correctly and (!) set the secondary DNS to what you use. This is important, as the provided dnsmasq configuration is very basic and only redirects the old flipnote servers
+* It's recommended to configure http authentication for webproc if you're exposing this to the internet.
 
-It's recommended to configure http authentication for webproc if you're exposing this to the internet.
 <br>Flipnote studio should now be able to connect to your replacement hatena server.
 
 
 ## Notes
 Some things I observed while developing this are available in notes.md, and contains status quo on some features.
-
-> The txt files in ugoserver/hatena/static/ds/v2-xx/ should be UTF-16LE, otherwise the DS will not show any text. In vim this can be achieved by setting fileencoding to utf-16le and saving the file.<br>
-> `ugoserver/hatena/static/ds/v2-xx` should be symlinked to regions you want to enable. v2-us, v2-eu and v2-jp can be inferred from the name, v2 is the initial rev2 release of flipnote studio in japan.<br>
-No longer the case because I made it not in a stupid way. Just edit the files in `txt/` if you want to change any static text data sent by the server, or edit the list in var.go if you want to enable/disable a region
 
 I probably should've used git to log changes before I made this public, but that's whatever
 
@@ -55,12 +53,12 @@ Issues and pull requests are welcome.
 
 I try to comment code as much as possible, maybe even when not needed, but I believe extra documentation for things that may seem obvious is better than no documentation.
 
-If you have original flipnote hatena captures, that would be SUPER helpful. Please send them over, you can find my contacts on [my web page](https://furokku.github.io/about.html).
+If you have original flipnote hatena captures, that would be SUPER helpful. Please send them over, you can find my contacts on [my web page](https://floc.root.sx/about.html).
 
 
 ## Credits & Thanks
-[hatena-server](https://github.com/pbsds/hatena-server) - pbsds
-<br> Original flipnote hatena dumps (thank you a lot!) - pbsds
+Original [hatena-server](https://github.com/pbsds/hatena-server) - pbsds
+<br>flipnote hatena dumps (thank you a lot!) - pbsds
 <br>[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project Kaeru
 <br>Extensive flipnote format documentation [here](https://github.com/Flipnote-Collective/flipnote-studio-docs/wiki) and [here](https://github.com/pbsds/hatena-server/wiki)
 <br>and likely others...
