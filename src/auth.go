@@ -15,7 +15,7 @@ import (
 
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
-    log.Printf("received %v request to %v%v with header %v\n", r.Method, r.Host, r.URL.Path, r.Header)
+    log.Printf("%v made %v request to %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.URL.Path, r.Header)
 
     // feels kinda redundant but i wrote this
     // earlier and don't feel like removing it (entirely)
@@ -67,10 +67,10 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         req := authPostRequest{
             mac:      r.Header.Get("X-Dsi-Mac"),
             id:       r.Header.Get("X-Dsi-Id"),          // FSID
-            auth:     r.Header.Get("X-Dsi-Auth-Response"),
+            auth:     r.Header.Get("X-Dsi-Auth-Response"), // TODO: check this
             sid:      r.Header.Get("X-Dsi-Sid"),
-            ver:      r.Header.Get("X-Ugomemo-Version"), // maybe only accept V2
-            username: r.Header.Get("X-Dsi-User-Name"),   // TODO: store this
+            ver:      r.Header.Get("X-Ugomemo-Version"), // maybe only accept V2: done, mux regex does same thing
+            username: r.Header.Get("X-Dsi-User-Name"),   // TODO: store this: done
             region:   r.Header.Get("X-Dsi-Region"),
             lang:     r.Header.Get("X-Dsi-Lang"),
             country:  r.Header.Get("X-Dsi-Country"),
@@ -105,43 +105,49 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             w.Header()["X-DSi-New-Notices"] = []string{"0"}
             w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
 
+            log.Printf("successfully authenticated new session %v: %v\n", req.sid, sessions[req.sid])
 //          log.Println(sessions)
         }
 
     // technically no longer needed
+    // but I'll keep it just coz
     default:
-        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-        log.Printf("response 405 at %v%v", r.Host, r.URL.Path)
+        w.WriteHeader(http.StatusMethodNotAllowed)
         return
     }
 
     w.WriteHeader(http.StatusOK)
-    log.Printf("response 200 at %v%v with header %v\n", r.Host, r.URL.Path, w.Header())
+    log.Printf("responded to %v's request for %v%v with %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, w.Header())
 }
 
 func nasAuth(w http.ResponseWriter, r *http.Request) {
 
     // deny requests other than POST
+    // this IS necessary because of requests being handled by
+    // http.DefaultServeMux and not gorilla mux
     if r.Method != "POST" {
-        http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+        w.WriteHeader(http.StatusMethodNotAllowed)
         return
     }
 
     body, _ := io.ReadAll(r.Body)
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
-        log.Fatal("error parsing urlencoded form")
+        log.Printf("error parsing urlencoded form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
     }
 
     // decode base64 values to plaintext for logging reasons
     // and to check action key
     for key := range nasRequest {
         // only one value is set per key so this is fine
-        nasRequest[key][0] = decode(nasRequest[key][0])
+        nasRequest[key][0] = nasDecode(nasRequest[key][0])
     }
 
-    log.Printf("received request to %v%v with data %v\n%v\n", r.Host, r.URL.Path, string(body), r.Header)
-    log.Printf("%v\n\n", nasRequest)
+    // the form itself doesn't really convery much helpful information
+    // from a logging standpoint, but you can just add in string(body)
+    // here if you wish to see it
+    // might add a config option for that later when that exists
+    log.Printf("%v requested %v%v with headers %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     action := nasRequest.Get("action")
     resp := make(url.Values)
@@ -153,28 +159,30 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
         // known action values are login, acctcreate and svcloc
         // those can be handled later
         case "login":
-            resp.Set("challenge", encode(randAsciiString(8)))
-            resp.Set("locator", encode("gamespy.com"))
-            resp.Set("retry", encode("0"))
-            resp.Set("returncd", encode("001"))
-            resp.Set("token", encode(append([]byte("NDS"), randBytes(96)...)))
+            resp.Set("challenge", nasEncode(randAsciiString(8)))
+            resp.Set("locator", nasEncode("gamespy.com"))
+            resp.Set("retry", nasEncode("0"))
+            resp.Set("returncd", nasEncode("001"))
+            resp.Set("token", nasEncode(append([]byte("NDS"), randBytes(96)...)))
 
         default:
-            http.Error(w, "invalid request", http.StatusBadRequest)
+            w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy
             return
         }
 
     // nintendo profanity filter thing
     case "/pr":
-        resp.Set("prwords", encode("0"))
-        resp.Set("returncd", encode("000"))
+        // I don't really care about profanity but
+        // a simple check could be added here for completeness
+        resp.Set("prwords", nasEncode("0"))
+        resp.Set("returncd", nasEncode("000"))
 
     default:
-        http.Error(w, "invalid request", http.StatusNotFound)
+        w.WriteHeader(http.StatusNotFound) // invalid endpoint
         return
     }
 
     // datetime will be sent regardless
-    resp.Set("datetime", encode(time.Now().Format("20060102150405")))
+    resp.Set("datetime", nasEncode(time.Now().Format("20060102150405")))
     w.Write([]byte(resp.Encode()))
 }

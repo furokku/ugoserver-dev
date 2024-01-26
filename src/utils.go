@@ -1,31 +1,33 @@
 package main
 
 import (
-    "fmt"
-    "time"
-    "log"
-    "encoding/base64"
-    "strings"
-    "golang.org/x/text/encoding/unicode"
-    "math/rand"
-    cryptoRand "crypto/rand"
+	cryptoRand "crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"log"
+	"math/rand"
+	"strings"
+	"time"
+
+	"golang.org/x/text/encoding/unicode"
 )
 
+var (
+    utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+    utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
+    chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+)
 
-// self explanatory, i think
-func randBytes(count int) []byte {
-    buf := make([]byte, count)
+func randBytes(size int) []byte {
+    buf := make([]byte, size)
     cryptoRand.Read(buf)
 
     return buf
 }
 
 
-// self explanatory, again, i think
-func randAsciiString(count int) string {
-    chars := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
-
-    buf := make([]rune, count)
+func randAsciiString(size int) string {
+    buf := make([]rune, size)
     for i := range buf {
         buf[i] = chars[rand.Intn(len(chars))]
     }
@@ -36,10 +38,10 @@ func randAsciiString(count int) string {
 
 // nas response uses base64 with * and -
 // in place of = and + due to url reserved chars
-func decode(str string) string {
-    decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(strings.ReplaceAll(str, "-", "+"), "*", "="))
+func nasDecode(data string) string {
+    decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(strings.ReplaceAll(data, "-", "+"), "*", "="))
     if err != nil {
-        log.Printf("error decoding base64 string %v with error %v", str, err)
+        log.Printf("[nas] decoding base64 string %v failed with error %v", data, err)
         return ""
     }
 
@@ -47,7 +49,7 @@ func decode(str string) string {
 }
 
 
-func encode(data any) string {
+func nasEncode(data any) string {
     var encoded string
 
     switch data := data.(type) {
@@ -61,18 +63,17 @@ func encode(data any) string {
 }
 
 
-// For error messages and labels
+// any text that is displayed on the screen in flipnote studio
+// must be in UTF16-LE
 func encUTF16LE(data any) []byte {
-    utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
-
     var encoded []byte
     var err error
 
     switch data := data.(type) {
     case string:
-        encoded, err = utf16.Bytes([]byte(data))
+        encoded, err = utf16e.Bytes([]byte(data))
     case []byte:
-        encoded, err = utf16.Bytes(data)
+        encoded, err = utf16e.Bytes(data)
     }
     if err != nil {
         log.Printf("error encoding string to utf-16le %v", err)
@@ -84,9 +85,7 @@ func encUTF16LE(data any) []byte {
 
 
 func decUTF16LE(data []byte) []byte {
-    utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-
-    decoded, err := utf16.Bytes(data)
+    decoded, err := utf16d.Bytes(data)
     if err != nil {
         log.Printf("error decoding utf16le data %v", err)
         return []byte{}
@@ -97,17 +96,25 @@ func decUTF16LE(data []byte) []byte {
 
 
 func decReqUsername(username string) string {
-    utf16, err := base64.RawStdEncoding.DecodeString(username)
+    bytes := make([]byte, base64.StdEncoding.DecodedLen(len(username)))
+
+    _, err := base64.StdEncoding.Decode(bytes, []byte(username))
     if err != nil {
         log.Printf("decReqUsername(): failed to decode string %v with error %v", username, err)
         return ""
     }
 
-    return string(decUTF16LE(utf16))
+    decoded, err := utf16d.Bytes(bytes)
+    if err != nil {
+        log.Printf("decReqUsername(): failed to decode utf16 from %v: %v", username, err)
+        return ""
+    }
+
+    return string(decoded)
 }
 
 
-// issue a unique sid to the flipnote client
+// issue a unique sid to the client
 func genUniqueSession() string {
     var sid string
 
@@ -120,7 +127,8 @@ func genUniqueSession() string {
 }
 
 
-// delete sessions issued 2h ago
+// find expired sessions and delete them every
+// 5 minutes
 func pruneSids() {
     for {
         time.Sleep(5 * time.Minute)
@@ -157,9 +165,9 @@ func findOffset(p int) int {
 
 func editCountPad(count uint16) string {
 
-    if count > 999 {
-        log.Printf("editCountPad(): error: edit count larger than 999 (%v), setting to 0", count)
-        return "000"
+    for count > 999 {
+        log.Printf("editCountPad(): warning: edit count larger than 999 (%v), looping back", count)
+        count = count - 999
     }
 
     return fmt.Sprintf("%03d", count)

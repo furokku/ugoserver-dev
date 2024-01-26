@@ -73,25 +73,26 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
-    h.Path("/ds/{reg}/{lang}/{file}.txt").Methods("GET").HandlerFunc(handleEula)
-    h.Path("/ds/{reg}/{lang}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{file}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula)
 
-    h.Path("/ds/{reg}/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/{reg}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    // add regex here instead of an if statement in the function
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file:(?:delete|download|eula|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
 
-    h.Path("/ds/{reg}/{ugo}.ugo").Methods("GET").HandlerFunc(handleUgo)
-    h.Path("/ds/{reg}/{file}.htm").Methods("GET").HandlerFunc(returnFromFs)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo}.ugo").Methods("GET").HandlerFunc(handleUgo)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
 
     // return a built ugo file with flipnotes
+    // only implemented recent so far
     h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage(db))
 
-    h.Path("/ds/{reg}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote(db))
-    h.Path("/ds/{reg}/movie/{filename}.ppm").Methods("POST").HandlerFunc(postFlipnote(db))
+    // uploading
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote(db))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.ppm").Methods("POST").HandlerFunc(postFlipnote(db))
 
-    // stuff
-    h.Path("/flipnotes/{filename}.ppm").Methods("GET").HandlerFunc(returnFromFs)
-    h.Path("/flipnotes/{filename}.htm").Methods("GET").HandlerFunc(sendWip)
-    h.Path("/flipnotes/{filename}.info").Methods("GET").HandlerFunc(handleInfo)
+    // related to fetching flipnotes
+    h.Path("/flipnotes/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
 
     n.HandleFunc("/", nasAuth)
 

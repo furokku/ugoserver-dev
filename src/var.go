@@ -45,11 +45,10 @@ var (
     sessions = make(map[string]struct{fsid string; username string; issued int64})
 
     // only the regions that are listed can be accessed thru /ds/xxxxx/foo/bar
-    regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp (?)
-
-    // eula files that should be returned by handleEula()
-    // TODO: remove, add to function directly or to unified config file
-    txtFiles = []string{"eula", "upload", "delete", "download"}
+    // not necessary because i realized that half of these things
+    // can just be done with a simple regex statement while assigning handlers
+    // regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp (?)
+    // txts := []string{"delete", "download", "eula", "upload"}
 
     // template/static ugomenus
     indexUGO = ugo.Ugomenu{

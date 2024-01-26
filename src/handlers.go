@@ -1,10 +1,9 @@
-package main;
+package main
 
 
 import (
     "os"
     "io"
-    "slices"
 
     "floc/ugoserver/ugo"
     "fmt"
@@ -22,9 +21,10 @@ import (
 )
 
 
+// probably needs a rewrite
 func handleUgo(w http.ResponseWriter, r *http.Request) {
 
-    log.Printf("received %v request to %v%v with header %v\n", r.Method, r.Host, r.URL.Path, w.Header())
+    log.Printf("%v requested %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     // there was method checking code here
     // but gorilla mux exists
@@ -32,16 +32,18 @@ func handleUgo(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     switch vars["ugo"] {
 
-    case "index":
-        w.Write(indexUGO.Pack())
+        case "index":
+            w.Write(indexUGO.Pack())
+        default:
+            w.WriteHeader(http.StatusNotFound)
     }
 
-    log.Printf("respose 200 at %v%v with header %v", r.Host, r.URL.Path, w.Header())
+    return
 }
 
 
 // Replace this (eventually)
-func returnFromFs(w http.ResponseWriter, r *http.Request) {
+/* func returnFromFs(w http.ResponseWriter, r *http.Request) {
 
     log.Printf("received %v request to %v%v with header %v\n", r.Method, r.Host, r.URL, r.Header)
 
@@ -68,6 +70,51 @@ func returnFromFs(w http.ResponseWriter, r *http.Request) {
 
     w.Write(data)
     log.Printf("response 200 at %v%v with headers %v", r.Host, r.URL.Path, w.Header())
+} */
+
+// Not my finest code up there so we're doing this a better way
+func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
+
+    log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+
+    vars := mux.Vars(r)
+
+    id := vars["id"]
+    ext := vars["ext"]
+
+    path := "/flipnotes/" + id + ".ppm"
+
+    switch ext {
+        case "ppm":
+            data, err := os.ReadFile(dataPath + path)
+            if err != nil {
+                w.WriteHeader(http.StatusNotFound)
+                log.Printf("%v got 404 at %v%v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path)
+                return
+            }
+
+            w.Write(data)
+            log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
+            return
+
+        case "htm":
+            if fi, err := os.Stat(dataPath + path); err == nil {
+                w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", serverUrl+path, serverUrl+path, id, fi.Size(), fi.ModTime())))
+                return
+            } else {
+                w.WriteHeader(http.StatusNotFound)
+                log.Printf("%v got 404 at %v%v : %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+                return
+            }
+
+        case "info":
+            w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
+            return
+
+        default:
+            http.Error(w, "congratulations! you've encountered behaviour that should NEVER happen!\nreport this, please.", http.StatusInternalServerError)
+            return
+    }
 }
 
 
@@ -78,7 +125,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
     // very amazing wrapper i am programer
     fn := func(w http.ResponseWriter, r *http.Request) {
 
-        log.Printf("received request to %v%v", r.Host, r.URL.Path)
+        log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
         
         vars := mux.Vars(r)
         base := frontBaseUGO
@@ -93,7 +140,7 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
         } else if err != nil {
             // When the page isn't specified this should be expected
             // TODO: get rid of this under above condition: done
-            log.Printf("invalid page passed to %v%v: %v", r.Host, r.URL.Path, err)
+            log.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
             page = 1
         }
 
@@ -161,22 +208,23 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
 // I have no idea why this is needed
 // nor what it does
 // Changes some statistic in the flipnote viewer maybe?
-func handleInfo(w http.ResponseWriter, r *http.Request) {
+// Replaced by a catchall function
+/* func handleInfo(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("0\n0\n"))
-}
+} */
 
 
 // Return delete, upload, download, eula
 func handleEula(w http.ResponseWriter, r *http.Request) {
-    log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
+    log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     vars := mux.Vars(r)
     file := vars["file"]
 
-    if !slices.Contains(txtFiles, file) {
-        http.Error(w, "not found", http.StatusNotFound)
-        return
-    }
+    // if !slices.Contains(txts, file) {
+    //    http.Error(w, "not found", http.StatusNotFound)
+    //    return
+    //}
     
     text, err := os.ReadFile(txtPath + file + ".txt")
     if err != nil {
@@ -189,14 +237,15 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
 
 
 // Simply log the request and do nothing
-func sendWip(w http.ResponseWriter, r *http.Request) {
+// Replaced by a catchall function
+/* func sendWip(w http.ResponseWriter, r *http.Request) {
     log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
 
     vars := mux.Vars(r)
     ppmPath := serverUrl + "/flipnotes/" + vars["filename"] + ".ppm"
 
     w.Write([]byte("<html><head><meta name=\"upperlink\" content=\"" + ppmPath + "\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"" + ppmPath + "\"></head><body><p>wip<br>obviously this would be unfinished</p></body></html>"))
-}
+} */
 
 // accept flipnotes uploaded thru internal ugomemo:// url
 // or flipnote.post url
@@ -205,7 +254,7 @@ func postFlipnote(db *sql.DB) http.HandlerFunc {
     // deja vu
     fn := func(w http.ResponseWriter, r *http.Request) {
 
-        log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
+        log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
         // make sure request has a valid SID
         // we don't want a flood of random flipnotes
@@ -224,6 +273,8 @@ func postFlipnote(db *sql.DB) http.HandlerFunc {
             return
         }
 
+        // should this stay? it may be simpler to just store flipnotes
+        // by their id in the database
         filename := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
                     string(ppmBody[0x7B : 0x88]) + "_" +
                     editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
@@ -236,7 +287,13 @@ func postFlipnote(db *sql.DB) http.HandlerFunc {
             // if it becomes an issue, I will either save them in reference
             // to their id in the database or start adding randomized
             // characters in the end
-            log.Printf("postFlipnote(): failed to write open path to ppm: %v", err)
+            //
+            // 26/01/24 - if somebody tries to upload the same flipnote twice,
+            // this becomes a problem -- idk how I didn't think about this earlier
+            // it may be better to store them with their id as the name
+            // as this would eliminate filename clashes and the original
+            // filename is stored within the ppm body itself
+            log.Printf("postFlipnote(): failed to open path to ppm: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }

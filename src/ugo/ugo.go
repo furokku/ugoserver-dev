@@ -7,13 +7,6 @@ import (
 
 const magic string = "UGAR"
 
-var (
-    // for readability
-    newline byte = 0x0A
-    tab     byte = 0x09
-    nul     byte = 0x00
-)
-
 type Ugomenu struct {
     Entries []MenuEntry
     Embed [][]byte
@@ -34,11 +27,11 @@ func (u Ugomenu) Pack() []byte {
 
     // an ugomenu must have this section
     for _, item := range u.Entries {
-        menus = append(menus, newline)
+        menus = append(menus, 0x0A)
         menus = append(menus, fmt.Sprint(item.EntryType)...)
 
         for n := range item.Data {
-            menus = append(menus, tab)
+            menus = append(menus, 0x09)
             menus = append(menus, item.Data[n]...)
         }
     }
@@ -49,7 +42,7 @@ func (u Ugomenu) Pack() []byte {
     // for things like custom icons or layout 2
     //
     // Should be ntft or tmb
-    if len(u.Embed) != 0 {
+    if len(u.Embed) > 0 {
         for _, embed := range u.Embed {
             embedded = append(embedded, embed...)
         }
@@ -76,7 +69,7 @@ func padBytes(d []byte) []byte {
 
     if x := len(d) % 4; x != 0 {
         for i := 0; i < (4-x); i++ {
-            padded = append(padded, nul)
+            padded = append(padded, 0x00)
         }
     }
     return padded
