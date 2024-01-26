@@ -73,12 +73,12 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{file}.txt").Methods("GET").HandlerFunc(handleEula)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula)
-
     // add regex here instead of an if statement in the function
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file:(?:delete|download|eula|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{file}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{file:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula)
+
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo}.ugo").Methods("GET").HandlerFunc(handleUgo)
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
@@ -92,6 +92,7 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.ppm").Methods("POST").HandlerFunc(postFlipnote(db))
 
     // related to fetching flipnotes
+    // may or may not survive next update
     h.Path("/flipnotes/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
 
     n.HandleFunc("/", nasAuth)
