@@ -134,6 +134,8 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
         log.Printf("error parsing urlencoded form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        w.WriteHeader(http.StatusBadRequest)
+        return
     }
 
     // decode base64 values to plaintext for logging reasons
