@@ -74,7 +74,7 @@ func main() {
 
     // eula
     // add regex here instead of an if statement in the function
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{file:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula)
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
