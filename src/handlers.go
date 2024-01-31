@@ -7,11 +7,9 @@ import (
 
     "floc/ugoserver/ugo"
     "fmt"
-    "log"
 
     "github.com/gorilla/mux"
     "net/http"
-    "database/sql"
 
     "encoding/base64"
     "encoding/binary"
@@ -22,24 +20,27 @@ import (
 
 
 // probably needs a rewrite
-func handleUgo(w http.ResponseWriter, r *http.Request) {
-
-    log.Printf("%v requested %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
-
-    // there was method checking code here
-    // but gorilla mux exists
-
-    vars := mux.Vars(r)
-    switch vars["ugo"] {
-
-        case "index":
-            w.Write(indexUGO.Pack())
-        default:
-            w.WriteHeader(http.StatusNotFound)
-    }
-
-    return
-}
+// No UGOs are requested at the root so this can go
+// Doesn't send any special headers either so not really
+// important for logging
+// func handleUgo(w http.ResponseWriter, r *http.Request) {
+// 
+//     log.Printf("%v requested %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+// 
+//     // there was method checking code here
+//     // but gorilla mux exists
+// 
+//     vars := mux.Vars(r)
+//     switch vars["ugo"] {
+// 
+//         case "index":
+//             w.Write(indexUGO.Pack())
+//         default:
+//             w.WriteHeader(http.StatusNotFound)
+//     }
+// 
+//     return
+// }
 
 
 // Replace this (eventually)
@@ -75,7 +76,7 @@ func handleUgo(w http.ResponseWriter, r *http.Request) {
 // Not my finest code up there so we're doing this a better way
 func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 
-    log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+    infolog.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     vars := mux.Vars(r)
 
@@ -89,12 +90,12 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
             data, err := os.ReadFile(dataPath + path)
             if err != nil {
                 w.WriteHeader(http.StatusNotFound)
-                log.Printf("%v got 404 at %v%v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path)
+                infolog.Printf("%v got 404 at %v%v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path)
                 return
             }
 
             w.Write(data)
-            log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
+//          log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
             return
 
         case "htm":
@@ -103,7 +104,7 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
                 return
             } else {
                 w.WriteHeader(http.StatusNotFound)
-                log.Printf("%v got 404 at %v%v : %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+                infolog.Printf("%v got 404 at %v%v : %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
                 return
             }
 
@@ -112,7 +113,7 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
             return
 
         default:
-            http.Error(w, "congratulations! you've encountered behaviour that should NEVER happen!\nreport this, please.", http.StatusInternalServerError)
+            w.WriteHeader(http.StatusNotFound)
             return
     }
 }
@@ -120,89 +121,87 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 
 // Handler for building ugomenus for the front page
 // recent, hot, most liked, etc..
-func serveFrontPage(db *sql.DB) http.HandlerFunc {
+func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 
-    // very amazing wrapper i am programer
-    fn := func(w http.ResponseWriter, r *http.Request) {
+    infolog.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+    
+    vars := mux.Vars(r)
+    base := frontBaseUGO
 
-        log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
-        
-        vars := mux.Vars(r)
-        base := frontBaseUGO
+    pageType := vars["type"]
+    pageQ := r.URL.Query().Get("page")
 
-        pageType := vars["type"]
-        pageQ := r.URL.Query().Get("page")
-
-        page, err := strconv.Atoi(pageQ)
-        if pageQ == "" {
-            // do NOT print error message if the query is empty
-            page = 1
-        } else if err != nil {
-            // When the page isn't specified this should be expected
-            // TODO: get rid of this under above condition: done
-            log.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
-            page = 1
-        }
-
-        flipnotes, total := getFrontFlipnotes(db, pageType, page)
-
-        // Add top screen titles
-        base.Entries = append(base.Entries, ugo.MenuEntry{
-            EntryType: 1,
-            Data: []string{
-                "0",
-                base64.StdEncoding.EncodeToString(encUTF16LE("Front page")),
-                base64.StdEncoding.EncodeToString(encUTF16LE(fmt.Sprintf("Page %d / %d", page, countPages(total)))),
-            },
-        })
-        base.Entries = append(base.Entries, ugo.MenuEntry{
-            EntryType: 2, // category
-            Data: []string{
-                serverUrl + "/front/recent.uls",
-                base64.RawStdEncoding.EncodeToString(encUTF16LE("@" + pageType)),
-                "1",
-            },
-        })
-
-        if page > 1 {
-            base.Entries = append(base.Entries, ugo.MenuEntry{
-                EntryType: 4,
-                Data: []string{
-                    fmt.Sprintf(serverUrl + "/front/%v.uls?page=%v", pageType, page-1),
-                    "100",
-                    base64.RawStdEncoding.EncodeToString(encUTF16LE("Previous page")),
-                },
-            })
-        }
-
-        for _, f := range flipnotes {
-            tempTmb := getTmbData(f.filename)
-
-            base.Entries = append(base.Entries, ugo.MenuEntry{
-                EntryType: 4,
-                Data: []string{
-                    fmt.Sprintf(serverUrl + "/flipnotes/%s.ppm", f.filename),
-                    "3",
-                    "0",
-                    "0", // star counter (TODO)
-                    fmt.Sprint(tempTmb.flipnoteIsLocked()),
-                    "0", // ??
-                },
-            })
-
-            base.Embed = append(base.Embed, tempTmb)
-            //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
-        }
-
-        // TODO: add previous/next page buttons
-        data := base.Pack()
-        //fmt.Println(string(data))
-        w.Write(data)
+    page, err := strconv.Atoi(pageQ)
+    if pageQ == "" {
+        // do NOT print error message if the query is empty
+        page = 1
+    } else if err != nil {
+        // When the page isn't specified this should be expected
+        // TODO: get rid of this under above condition: done
+        infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        page = 1
     }
 
-    // inline return is ugly
-    return fn
+    flipnotes, total := getFrontFlipnotes(pageType, page)
+
+    // Add top screen titles
+    base.Entries = append(base.Entries, ugo.MenuEntry{
+        EntryType: 1,
+        Data: []string{
+            "0",
+            base64.StdEncoding.EncodeToString(encUTF16LE("Front page")),
+            base64.StdEncoding.EncodeToString(encUTF16LE(fmt.Sprintf("Page %d / %d", page, countPages(total)))),
+        },
+    })
+    base.Entries = append(base.Entries, ugo.MenuEntry{
+        EntryType: 2, // category
+        Data: []string{
+            serverUrl + "/front/recent.uls",
+            base64.RawStdEncoding.EncodeToString(encUTF16LE("@" + pageType)),
+            "1",
+        },
+    })
+
+    if page > 1 {
+        base.Entries = append(base.Entries, ugo.MenuEntry{
+            EntryType: 4,
+            Data: []string{
+                fmt.Sprintf(serverUrl + "/front/%v.uls?page=%v", pageType, page-1),
+                "100",
+                base64.RawStdEncoding.EncodeToString(encUTF16LE("Previous page")),
+            },
+        })
+    }
+
+    for _, f := range flipnotes {
+        tempTmb := f.getTmb()
+        if tempTmb == nil {
+            warnlog.Printf("tmb is nil")
+            w.WriteHeader(http.StatusInternalServerError)
+        }
+
+        base.Entries = append(base.Entries, ugo.MenuEntry{
+            EntryType: 4,
+            Data: []string{
+                fmt.Sprintf(serverUrl + "/flipnotes/%s.ppm", f.filename),
+                "3",
+                "0",
+                "0", // star counter (TODO)
+                fmt.Sprint(tempTmb.flipnoteIsLocked()),
+                "0", // ??
+            },
+        })
+
+        base.Embed = append(base.Embed, tempTmb)
+        //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
+    }
+
+    // TODO: add previous/next page buttons
+    data := base.Pack()
+    //fmt.Println(string(data))
+    w.Write(data)
 }
+
 
 
 // I have no idea why this is needed
@@ -216,19 +215,19 @@ func serveFrontPage(db *sql.DB) http.HandlerFunc {
 
 // Return delete, upload, download, eula
 func handleEula(w http.ResponseWriter, r *http.Request) {
-    log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+    infolog.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     vars := mux.Vars(r)
-    file := vars["file"]
+    txt := vars["txt"]
 
     // if !slices.Contains(txts, file) {
     //    http.Error(w, "not found", http.StatusNotFound)
     //    return
     //}
     
-    text, err := os.ReadFile(txtPath + file + ".txt")
+    text, err := os.ReadFile(staticPath + "/txt/" + txt + ".txt")
     if err != nil {
-        log.Printf("handleEula(): WARNING: failed to read %v: %v", file, err)
+        warnlog.Printf("failed to read %v: %v", txt, err)
         text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
     }
 
@@ -249,72 +248,67 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
 
 // accept flipnotes uploaded thru internal ugomemo:// url
 // or flipnote.post url
-func postFlipnote(db *sql.DB) http.HandlerFunc {
+func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
-    // deja vu
-    fn := func(w http.ResponseWriter, r *http.Request) {
+    infolog.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
-        log.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
-
-        // make sure request has a valid SID
-        // we don't want a flood of random flipnotes
-        // after all...
-        session, ok := sessions[r.Header.Get("X-Dsi-Sid")]
-        if !ok {
-            log.Printf("postFlipnote(): unauthorized attempt to post flipnote")
-            w.WriteHeader(http.StatusUnauthorized)
-            return
-        }
-
-        ppmBody, err := io.ReadAll(r.Body)
-        if err != nil {
-            log.Printf("postFlipnote(): error: failed to read ppm from POST request body! %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        // should this stay? it may be simpler to just store flipnotes
-        // by their id in the database
-        filename := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
-                    string(ppmBody[0x7B : 0x88]) + "_" +
-                    editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
-
-        log.Printf("received ppm body from %v %v %v", session.fsid, session.username, filename)
-
-        fp, err := os.OpenFile(dataPath + "flipnotes/" + filename + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
-        if err != nil {
-            // Realistically, two flipnote filenames shouldn't clash.
-            // if it becomes an issue, I will either save them in reference
-            // to their id in the database or start adding randomized
-            // characters in the end
-            //
-            // 26/01/24 - if somebody tries to upload the same flipnote twice,
-            // this becomes a problem -- idk how I didn't think about this earlier
-            // it may be better to store them with their id as the name
-            // as this would eliminate filename clashes and the original
-            // filename is stored within the ppm body itself
-            log.Printf("postFlipnote(): failed to open path to ppm: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        defer func() {
-            if err := fp.Close(); err != nil {
-                panic(err)
-            }
-        }()
-
-        if _, err := fp.Write(ppmBody); err != nil {
-            log.Printf("postFlipnote(): failed to write ppm to file: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        if _, err := db.Exec("INSERT INTO flipnotes (author_id, filename) VALUES ($1, $2)", session.fsid, filename); err != nil {
-            log.Printf("postFlipnote(): failed to update database! %v", err)
-        }
-
-        w.WriteHeader(http.StatusOK)
+    // make sure request has a valid SID
+    // we don't want a flood of random flipnotes
+    // after all...
+    session, ok := sessions[r.Header.Get("X-Dsi-Sid")]
+    if !ok {
+        infolog.Printf("unauthorized attempt to post flipnote")
+        w.WriteHeader(http.StatusUnauthorized)
+        return
     }
-    return fn
+
+    ppmBody, err := io.ReadAll(r.Body)
+    if err != nil {
+        warnlog.Printf("failed to read ppm from POST request body! %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // should this stay? it may be simpler to just store flipnotes
+    // by their id in the database
+    filename := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
+                string(ppmBody[0x7B : 0x88]) + "_" +
+                editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
+
+    debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, filename)
+
+    fp, err := os.OpenFile(dataPath + "/flipnotes/" + filename + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    if err != nil {
+        // Realistically, two flipnote filenames shouldn't clash.
+        // if it becomes an issue, I will either save them in reference
+        // to their id in the database or start adding randomized
+        // characters in the end
+        //
+        // 26/01/24 - if somebody tries to upload the same flipnote twice,
+        // this becomes a problem -- idk how I didn't think about this earlier
+        // it may be better to store them with their id as the name
+        // as this would eliminate filename clashes and the original
+        // filename is stored within the ppm body itself
+        warnlog.Printf("failed to open path to ppm: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    defer func() {
+        if err := fp.Close(); err != nil {
+            panic(err)
+        }
+    }()
+
+    if _, err := fp.Write(ppmBody); err != nil {
+        warnlog.Printf("failed to write ppm to file: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    if _, err := db.Exec("INSERT INTO flipnotes (author_id, filename) VALUES ($1, $2)", session.fsid, filename); err != nil {
+        warnlog.Printf("failed to update database: %v", err)
+    }
+
+    w.WriteHeader(http.StatusOK)
 }

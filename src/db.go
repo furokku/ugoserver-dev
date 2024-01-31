@@ -1,9 +1,7 @@
 package main
 
 import (
-    "database/sql"
     "time"
-    "log"
 )
 
 
@@ -15,7 +13,7 @@ import (
 // Probably terrible practice so 50 flipnotes are requested
 // and the total amount is too in order to build a page count
 // and determine whether the next page button should be there
-func getFrontFlipnotes(db *sql.DB, q string, p int) ([]flipnote, int) {
+func getFrontFlipnotes(q string, p int) ([]flipnote, int) {
 
     var resp []flipnote
     var total int
@@ -32,14 +30,15 @@ func getFrontFlipnotes(db *sql.DB, q string, p int) ([]flipnote, int) {
 
     rows, err := db.Query("SELECT * FROM flipnotes ORDER BY $1 DESC LIMIT 50 OFFSET $2", orderby, offset)
     if err != nil {
-        log.Fatalf("getFlipnotes: %v", err)
+        // TODO: return an error for this and below and other stuff
+        errorlog.Printf("failed to access database: %v", err)
         return []flipnote{}, 0
     }
 
     // get amount of total flipnotes in order to do some math
     rows2, err := db.Query("SELECT count(1) FROM flipnotes")
     if err != nil {
-        log.Fatalf("getFlipnotes: %v", err)
+        errorlog.Printf("failed to access database: %v", err)
         return []flipnote{}, 0
     }
 

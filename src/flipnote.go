@@ -4,43 +4,37 @@ import (
     "time"
     "os"
     "fmt"
-    "log"
 )
 
-type (
-    flipnote struct {
-        id int
-        author string
-        filename string
-        uploaded_at time.Time
-    }
+type flipnote struct {
+    id int
+    author string
+    filename string
+    uploaded_at time.Time
+}
 
-    tmb []byte
-)
-
-var (
-    tmbSize int = 0x6A0 // size of tmb data
-    lockOffset int = 0x10 // flipnote lock state
-)
+type tmb []byte
+var tmbSize int = 0x6A0
 
 // Get the TMB for a given flipnote
 // Used for flipnote previews on menu type 2
-func getTmbData(fn string) tmb {
+// Returns nil if failed to read file
+func (f flipnote) getTmb() tmb {
     buf := make([]byte, tmbSize)
-    path := fmt.Sprintf(dataPath + "flipnotes/%s.ppm", fn)
+    path := fmt.Sprintf(dataPath + "/flipnotes/%s.ppm", f.filename)
 
     file, err := os.Open(path)
     if err != nil {
-        log.Fatalf("getTmbData: %v", err)
+        errorlog.Printf("failed to open %v: %v", path, err)
+        return nil
     }
 
     defer file.Close()
 
-    n, err := file.Read(buf)
+    _, err = file.Read(buf)
     if err != nil {
-        log.Fatalf("getTmbData: %v", err)
-    } else if n != tmbSize {
-        log.Printf("getTmbData: WARNING: read %v bytes instead of 1696", n)
+        errorlog.Printf("failed to read %v: %v", path, err)
+        return nil
     }
 
     return buf
@@ -50,10 +44,10 @@ func getTmbData(fn string) tmb {
 // return whether a flipnote is locked
 // 0 if not, 1 if it is
 func (t tmb) flipnoteIsLocked() int {
-    l := int(t[ lockOffset ])
+    l := int( t[0x10] )
 
     if l != 0 && l != 1 {
-        log.Printf("flipnoteIsLocked: WARNING: invalid lock state; returning 0")
+        warnlog.Printf("invalid lock state")
         return 0
     } else {
         return l

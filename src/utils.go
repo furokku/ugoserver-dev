@@ -1,11 +1,9 @@
 package main
 
 import (
-	cryptoRand "crypto/rand"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -15,21 +13,22 @@ import (
 var (
     utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
     utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
-    chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+    chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 )
 
 func randBytes(size int) []byte {
     buf := make([]byte, size)
-    cryptoRand.Read(buf)
+    rand.Read(buf)
 
     return buf
 }
 
 
 func randAsciiString(size int) string {
-    buf := make([]rune, size)
-    for i := range buf {
-        buf[i] = chars[rand.Intn(len(chars))]
+    // cleaner
+    buf := randBytes(size)
+    for i, v := range buf {
+        buf[i] = chars[int(v) % len(chars)]
     }
     
     return string(buf)
@@ -41,7 +40,7 @@ func randAsciiString(size int) string {
 func nasDecode(data string) string {
     decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(strings.ReplaceAll(data, "-", "+"), "*", "="))
     if err != nil {
-        log.Printf("[nas] decoding base64 string %v failed with error %v", data, err)
+        warnlog.Printf("(nas) decoding base64 string %v failed with error %v", data, err)
         return ""
     }
 
@@ -76,8 +75,8 @@ func encUTF16LE(data any) []byte {
         encoded, err = utf16e.Bytes(data)
     }
     if err != nil {
-        log.Printf("error encoding string to utf-16le %v", err)
-        return []byte{}
+        warnlog.Printf("error encoding string to utf-16le %v", err)
+        return nil
     }
 
     return encoded
@@ -87,8 +86,8 @@ func encUTF16LE(data any) []byte {
 func decUTF16LE(data []byte) []byte {
     decoded, err := utf16d.Bytes(data)
     if err != nil {
-        log.Printf("error decoding utf16le data %v", err)
-        return []byte{}
+        warnlog.Printf("error decoding utf16le data %v", err)
+        return nil
     }
 
     return decoded
@@ -100,13 +99,13 @@ func decReqUsername(username string) string {
 
     _, err := base64.StdEncoding.Decode(bytes, []byte(username))
     if err != nil {
-        log.Printf("decReqUsername(): failed to decode string %v with error %v", username, err)
+        warnlog.Printf("failed to decode string %v with error %v", username, err)
         return ""
     }
 
     decoded, err := utf16d.Bytes(bytes)
     if err != nil {
-        log.Printf("decReqUsername(): failed to decode utf16 from %v: %v", username, err)
+        warnlog.Printf("failed to decode utf16 from %v: %v", username, err)
         return ""
     }
 
@@ -135,7 +134,7 @@ func pruneSids() {
 
         for k, v := range sessions {
             t := v.issued
-            elapsed := time.Now().Unix() - t
+            elapsed := time.Now().Unix() - t.Unix()
             if elapsed >= 7200 {
                 delete(sessions, k)
             }
@@ -166,7 +165,7 @@ func findOffset(p int) int {
 func editCountPad(count uint16) string {
 
     for count > 999 {
-        log.Printf("editCountPad(): warning: edit count larger than 999 (%v), looping back", count)
+        warnlog.Printf("edit count larger than 999 (%v), looping back", count)
         count = count - 999
     }
 

@@ -3,6 +3,8 @@ package main
 import (
     "encoding/base64"
     "floc/ugoserver/ugo"
+
+    "time"
 )
 
 // should be self-explanatory
@@ -30,8 +32,8 @@ const (
     enableNas = true
 
     // sane default paths for commonly accessed things
-    txtPath = "/srv/hatena/txt/"
-    dataPath = "/srv/hatena/hatena_storage/"
+    staticPath = "/srv/hatena/static"
+    dataPath = "/srv/hatena/hatena_storage"
     serverUrl = "http://flipnote.hatena.com"
 
     // ip to allow connections from
@@ -42,7 +44,7 @@ const (
 
 var (
     // Map to store flipnote sessions in
-    sessions = make(map[string]struct{fsid string; username string; issued int64})
+    sessions = make(map[string]struct{fsid string; username string; issued time.Time})
 
     // only the regions that are listed can be accessed thru /ds/xxxxx/foo/bar
     // not necessary because i realized that half of these things

@@ -3,7 +3,6 @@ package main
 
 import (
     "fmt"
-    "log"
 
     "io"
     "net/http"
@@ -15,7 +14,7 @@ import (
 
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
-    log.Printf("%v made %v request to %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.URL.Path, r.Header)
+    infolog.Printf("%v made %v request to %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.URL.Path, r.Header)
 
     // feels kinda redundant but i wrote this
     // earlier and don't feel like removing it (entirely)
@@ -89,11 +88,11 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             sessions[req.sid] = struct{
                 fsid string
                 username string
-                issued int64
+                issued time.Time
             } {
                 fsid: req.id,
                 username: decReqUsername(req.username),
-                issued: time.Now().Unix(),
+                issued: time.Now(),
             }
 
             w.Header()["X-DSi-SID"] = []string{req.sid}
@@ -105,7 +104,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             w.Header()["X-DSi-New-Notices"] = []string{"0"}
             w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
 
-            log.Printf("successfully authenticated new session %v: %v\n", req.sid, sessions[req.sid])
+            debuglog.Printf("successfully authenticated new session %v: %v\n", req.sid, sessions[req.sid])
 //          log.Println(sessions)
         }
 
@@ -117,7 +116,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     }
 
     w.WriteHeader(http.StatusOK)
-    log.Printf("responded to %v's request for %v%v with %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, w.Header())
+    infolog.Printf("responded to %v's request for %v%v with %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, w.Header())
 }
 
 func nasAuth(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +132,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     body, _ := io.ReadAll(r.Body)
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
-        log.Printf("error parsing urlencoded form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        errorlog.Printf("error parsing urlencoded form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
@@ -149,7 +148,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // from a logging standpoint, but you can just add in string(body)
     // here if you wish to see it
     // might add a config option for that later when that exists
-    log.Printf("%v requested %v%v with headers %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+    infolog.Printf("%v requested %v%v with headers %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     action := nasRequest.Get("action")
     resp := make(url.Values)

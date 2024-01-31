@@ -5,7 +5,6 @@ import (
     "database/sql"
 
     "fmt"
-    "log"
 
     "github.com/gorilla/mux"
     "net/http"
@@ -16,6 +15,8 @@ import (
     "time"
 )
 
+var db *sql.DB
+
 func main() {
 
     // prep graceful exit
@@ -25,12 +26,15 @@ func main() {
     dbCfg := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
                          "localhost", 5432, os.Getenv("DBUSER"), os.Getenv("DBPASS"), "ugo")
 
+    // make it shut up
+    var err error
+
     // connect to database
-    db, err := sql.Open("postgres", dbCfg)
+    db, err = sql.Open("postgres", dbCfg)
     if err != nil {
-        log.Fatalf("failed to open database (sql.Open): %v", err)
+        errorlog.Fatalf("failed to open database: %v", err)
     } else if err := db.Ping(); err != nil {
-        log.Fatalf("failed to reach database (sql.Ping): %v", err)
+        errorlog.Fatalf("failed to reach database: %v", err)
     }
 
     defer db.Close()
@@ -47,7 +51,7 @@ func main() {
     // and such~~
     // will implement signal handling later so this should
     // still be a separate thread
-    log.Println("starting server...")
+    infolog.Println("starting server...")
 
     // gorilla/mux allows accepting requests for
     // a range of urls, then filtering them as needed
@@ -80,16 +84,16 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo}.ugo").Methods("GET").HandlerFunc(handleUgo)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo:(?:index)}.ugo").Methods("GET").HandlerFunc(indexUGO.UgoHandle())
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
 
     // return a built ugo file with flipnotes
     // only implemented recent so far
-    h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage(db))
+    h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage)
 
     // uploading
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote(db))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.ppm").Methods("POST").HandlerFunc(postFlipnote(db))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.ppm").Methods("POST").HandlerFunc(postFlipnote)
 
     // related to fetching flipnotes
     // may or may not survive next update
@@ -105,7 +109,7 @@ func main() {
     go func() {
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
-            log.Fatalf("server error: %v", err)
+            errorlog.Fatalf("server error: %v", err)
         }
     }()
 
@@ -115,34 +119,34 @@ func main() {
     // it returns a 404 on /ac or /pr randomly
     if enableNas {
 
-        log.Println("(nas) starting server...")
+        infolog.Println("(nas) starting server...")
 
         // start on separate thread
         go func() {
             err := nas.ListenAndServe()
             if err != http.ErrServerClosed {
-                log.Fatalf("(nas) server error: %v", err)
+                errorlog.Fatalf("(nas) server error: %v", err)
             }
         }()
     } else {
-        log.Println("(nas) enableNas set to false, not hosting")
+        infolog.Println("(nas) enableNas set to false, not hosting")
     }
 
 
     // wait and do a graceful exit on ctrl-c / sigterm
     sig := <- sigs
-    log.Printf("%v: exiting...\n", sig)
+    infolog.Printf("%v: exiting...\n", sig)
 
     ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
     defer cancel()
 
     if err := hatena.Shutdown(ctx); err != nil {
-        log.Fatalf("graceful shutdown failed! %v", err)
+        errorlog.Fatalf("graceful shutdown failed! %v", err)
     }
 
     if enableNas { if err := nas.Shutdown(ctx); err != nil {
-        log.Fatalf("(nas) graceful shutdown failed! %v", err)
+        errorlog.Fatalf("(nas) graceful shutdown failed! %v", err)
     } }
 
-    log.Println("server shutdown")
+    infolog.Println("server shutdown")
 }

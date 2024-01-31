@@ -1,8 +1,9 @@
 package ugo
 
 import (
-    "fmt"
-    "encoding/binary"
+	"encoding/binary"
+	"fmt"
+	"net/http"
 )
 
 const magic string = "UGAR"
@@ -15,6 +16,17 @@ type Ugomenu struct {
 type MenuEntry struct {
     EntryType uint
     Data []string
+}
+
+
+func (u Ugomenu) UgoHandle() http.HandlerFunc {
+
+    fn := func(w http.ResponseWriter, r *http.Request) {
+        w.Write(u.Pack())
+        return
+    }
+
+    return fn
 }
 
 
@@ -60,6 +72,15 @@ func (u Ugomenu) Pack() []byte {
     if emb { header = binary.LittleEndian.AppendUint32(header, uint32(len(embedded))) }
     
     return append(header, append(menus, embedded...)...)
+}
+
+
+func (u Ugomenu) AddItem(e int, v... string) Ugomenu {
+
+
+
+    // wip
+    return u
 }
 
 
