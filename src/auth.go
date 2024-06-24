@@ -63,7 +63,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     case "POST":
 
-        req := authPostRequest{
+        req := AuthPostRequest{
             mac:      r.Header.Get("X-Dsi-Mac"),
             id:       r.Header.Get("X-Dsi-Id"),          // FSID
             auth:     r.Header.Get("X-Dsi-Auth-Response"), // TODO: check this
@@ -150,37 +150,38 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // might add a config option for that later when that exists
     infolog.Printf("%v requested %v%v with headers %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
-    action := nasRequest.Get("action")
     resp := make(url.Values)
 
     switch r.URL.Path {
-    case "/ac":
-        switch action {
+        case "/ac":
 
-        // known action values are login, acctcreate and svcloc
-        // those can be handled later
-        case "login":
-            resp.Set("challenge", nasEncode(randAsciiString(8)))
-            resp.Set("locator", nasEncode("gamespy.com"))
-            resp.Set("retry", nasEncode("0"))
-            resp.Set("returncd", nasEncode("001"))
-            resp.Set("token", nasEncode(append([]byte("NDS"), randBytes(96)...)))
+            action := nasRequest.Get("action")
+            switch action {
+
+                // known action values are login, acctcreate and svcloc
+                // those can be handled later
+                case "login":
+                    resp.Set("challenge", nasEncode(randAsciiString(8)))
+                    resp.Set("locator", nasEncode("gamespy.com"))
+                    resp.Set("retry", nasEncode("0"))
+                    resp.Set("returncd", nasEncode("001"))
+                    resp.Set("token", nasEncode(append([]byte("NDS"), randBytes(96)...)))
+
+                default:
+                    w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy
+                    return
+            }
+
+        // nintendo profanity filter thing
+        case "/pr":
+            // I don't really care about profanity but
+            // a simple check could be added here for completeness
+            resp.Set("prwords", nasEncode("0"))
+            resp.Set("returncd", nasEncode("000"))
 
         default:
-            w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy
+            w.WriteHeader(http.StatusNotFound) // invalid endpoint
             return
-        }
-
-    // nintendo profanity filter thing
-    case "/pr":
-        // I don't really care about profanity but
-        // a simple check could be added here for completeness
-        resp.Set("prwords", nasEncode("0"))
-        resp.Set("returncd", nasEncode("000"))
-
-    default:
-        w.WriteHeader(http.StatusNotFound) // invalid endpoint
-        return
     }
 
     // datetime will be sent regardless

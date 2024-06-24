@@ -87,7 +87,7 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 
     switch ext {
         case "ppm":
-            data, err := os.ReadFile(dataPath + path)
+            data, err := os.ReadFile(configuration.HatenaDir + "/hatena_storage" + path)
             if err != nil {
                 w.WriteHeader(http.StatusNotFound)
                 infolog.Printf("%v got 404 at %v%v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path)
@@ -99,12 +99,12 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
             return
 
         case "htm":
-            if fi, err := os.Stat(dataPath + path); err == nil {
-                w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", serverUrl+path, serverUrl+path, id, fi.Size(), fi.ModTime())))
+            if fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path); err == nil {
+                w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path, configuration.ServerUrl+path, id, fi.Size(), fi.ModTime())))
                 return
             } else {
                 w.WriteHeader(http.StatusNotFound)
-                infolog.Printf("%v got 404 at %v%v : %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+                infolog.Printf("%s got 404 at %s%s : %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
                 return
             }
 
@@ -123,10 +123,10 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 // recent, hot, most liked, etc..
 func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 
-    infolog.Printf("%v requested %v%v with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
+    infolog.Printf("%s requested %s%s with header %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
     
     vars := mux.Vars(r)
-    base := frontBaseUGO
+    base := gridBaseUGO
 
     pageType := vars["type"]
     pageQ := r.URL.Query().Get("page")
@@ -138,7 +138,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     } else if err != nil {
         // When the page isn't specified this should be expected
         // TODO: get rid of this under above condition: done
-        infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        infolog.Printf("%s passed invalid page to %s%s: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
         page = 1
     }
 
@@ -156,8 +156,8 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     base.Entries = append(base.Entries, ugo.MenuEntry{
         EntryType: 2, // category
         Data: []string{
-            serverUrl + "/front/recent.uls",
-            base64.RawStdEncoding.EncodeToString(encUTF16LE("@" + pageType)),
+            configuration.ServerUrl + "/front/recent.uls",
+            base64.StdEncoding.EncodeToString(encUTF16LE(pageType)),
             "1",
         },
     })
@@ -166,9 +166,9 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         base.Entries = append(base.Entries, ugo.MenuEntry{
             EntryType: 4,
             Data: []string{
-                fmt.Sprintf(serverUrl + "/front/%v.uls?page=%v", pageType, page-1),
+                fmt.Sprintf(configuration.ServerUrl + "/front/%s.uls?page=%d", pageType, page-1),
                 "100",
-                base64.RawStdEncoding.EncodeToString(encUTF16LE("Previous page")),
+                base64.StdEncoding.EncodeToString(encUTF16LE("Previous page")),
             },
         })
     }
@@ -178,15 +178,16 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         if tempTmb == nil {
             warnlog.Printf("tmb is nil")
             w.WriteHeader(http.StatusInternalServerError)
+            return
         }
 
         base.Entries = append(base.Entries, ugo.MenuEntry{
             EntryType: 4,
             Data: []string{
-                fmt.Sprintf(serverUrl + "/flipnotes/%s.ppm", f.filename),
+                fmt.Sprintf(configuration.ServerUrl + "/flipnotes/%s.ppm", f.filename),
                 "3",
                 "0",
-                "0", // star counter (TODO)
+                "420", // star counter (TODO)
                 fmt.Sprint(tempTmb.flipnoteIsLocked()),
                 "0", // ??
             },
@@ -225,7 +226,7 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     //    return
     //}
     
-    text, err := os.ReadFile(staticPath + "/txt/" + txt + ".txt")
+    text, err := os.ReadFile(configuration.HatenaDir + "/static/txt/" + txt + ".txt")
     if err != nil {
         warnlog.Printf("failed to read %v: %v", txt, err)
         text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
@@ -277,7 +278,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
     debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, filename)
 
-    fp, err := os.OpenFile(dataPath + "/flipnotes/" + filename + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(configuration.HatenaDir + "/hatena_storage/flipnotes/" + filename + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // Realistically, two flipnote filenames shouldn't clash.
         // if it becomes an issue, I will either save them in reference

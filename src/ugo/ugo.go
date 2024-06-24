@@ -75,9 +75,12 @@ func (u Ugomenu) Pack() []byte {
 }
 
 
-func (u Ugomenu) AddItem(e int, v... string) Ugomenu {
+func (u Ugomenu) AddItem(t uint, v... string) Ugomenu {
 
-
+    u.Entries = append(u.Entries, MenuEntry{
+        EntryType: t,
+        Data: v,
+    })
 
     // wip
     return u

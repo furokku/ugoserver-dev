@@ -1,15 +1,10 @@
-
 # you should create these
 # dirs yourself
-crt/
 hatena_storage/
-.httpenv
+crt/
 
-# binary file
 src/ugoserver
 
-# go
 go.sum
 
-# misc
-raw/
+private/

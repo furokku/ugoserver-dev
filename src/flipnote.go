@@ -21,7 +21,7 @@ var tmbSize int = 0x6A0
 // Returns nil if failed to read file
 func (f flipnote) getTmb() tmb {
     buf := make([]byte, tmbSize)
-    path := fmt.Sprintf(dataPath + "/flipnotes/%s.ppm", f.filename)
+    path := fmt.Sprintf(configuration.HatenaDir + "/hatena_storage/flipnotes/%s.ppm", f.filename)
 
     file, err := os.Open(path)
     if err != nil {

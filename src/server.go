@@ -5,6 +5,8 @@ import (
     "database/sql"
 
     "fmt"
+    "encoding/json"
+    "io"
 
     "github.com/gorilla/mux"
     "net/http"
@@ -16,18 +18,42 @@ import (
 )
 
 var db *sql.DB
+var configuration = Configuration{}
 
 func main() {
+
+    // Flags are kinda useless because this will always
+    // be used with a configuration file
+    configFile := "default.json"
+    if len(os.Args) > 1 {
+        configFile = os.Args[1]
+    }
+
+    temp, err := os.Open(configFile)
+    if err != nil {
+        errorlog.Fatalf("failed to open config file: %v", err)
+    }
+    defer temp.Close()
+
+    cbytes, _ := io.ReadAll(temp)
+    json.Unmarshal(cbytes, &configuration)
+
+    if err != nil {
+        errorlog.Fatalf("failed to load config file: %v", err)
+    }
+    debuglog.Printf("loaded config %v", configuration)
+
+    // temporary workaround until i come up with a better format
+    // for static/template ugos that don't need to change
+    ugoworkaroundinit()
 
     // prep graceful exit
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Kill, os.Interrupt)
 
     dbCfg := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-                         "localhost", 5432, os.Getenv("DBUSER"), os.Getenv("DBPASS"), "ugo")
+                         configuration.DbHost, configuration.DbPort, configuration.DbUser, configuration.DbPass, configuration.DbName)
 
-    // make it shut up
-    var err error
 
     // connect to database
     db, err = sql.Open("postgres", dbCfg)
@@ -36,6 +62,7 @@ func main() {
     } else if err := db.Ping(); err != nil {
         errorlog.Fatalf("failed to reach database: %v", err)
     }
+    debuglog.Printf("connected to %v @ %v:%v as %v", configuration.DbName, configuration.DbHost, configuration.DbPort, configuration.DbUser)
 
     defer db.Close()
 
@@ -102,8 +129,8 @@ func main() {
     n.HandleFunc("/", nasAuth)
 
     // define servers
-    nas := &http.Server{Addr: listen + ":9001", Handler: n}
-    hatena := &http.Server{Addr: listen + ":9000", Handler: h}
+    nas := &http.Server{Addr: configuration.Listen + ":9001", Handler: n}
+    hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}
 
     // start on separate thread
     go func() {
@@ -117,7 +144,7 @@ func main() {
     // use wiimmfi/kaeru nas
     // wiimmfi seems to be kinda weird and unstable because
     // it returns a 404 on /ac or /pr randomly
-    if enableNas {
+    if configuration.EnableNas {
 
         infolog.Println("(nas) starting server...")
 
@@ -144,7 +171,7 @@ func main() {
         errorlog.Fatalf("graceful shutdown failed! %v", err)
     }
 
-    if enableNas { if err := nas.Shutdown(ctx); err != nil {
+    if configuration.EnableNas { if err := nas.Shutdown(ctx); err != nil {
         errorlog.Fatalf("(nas) graceful shutdown failed! %v", err)
     } }
 

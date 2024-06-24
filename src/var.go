@@ -9,7 +9,7 @@ import (
 
 // should be self-explanatory
 type (
-    authPostRequest struct {
+    AuthPostRequest struct {
         mac      string
         id       string
         auth     string
@@ -24,23 +24,38 @@ type (
         color    string
     }
 
+    Configuration struct {
+        EnableNas bool `json:"enableNas"`
+
+        Listen    string `json:"listen"`
+        ServerUrl string `json:"serverUrl"`
+
+        HatenaDir string `json:"hatenaDir"`
+
+        DbHost    string `json:"dbHost"`
+        DbPort    int    `json:"dbPort"`
+        DbUser    string `json:"dbUser"`
+        DbPass    string `json:"dbPass"`
+        DbName    string `json:"dbName"`
+    }
 )
 
-const (
+// added better config
+// const (
     // enable the NAS functionality in the server
     // recommended to use wiimmfi
-    enableNas = true
+    // enableNas = true
 
     // sane default paths for commonly accessed things
-    staticPath = "/srv/hatena/static"
-    dataPath = "/srv/hatena/hatena_storage"
-    serverUrl = "http://flipnote.hatena.com"
+    // staticPath = "/srv/hatena/static"
+    // dataPath = "/srv/hatena/hatena_storage"
+    // serverUrl = "http://flipnote.hatena.com"
 
     // ip to allow connections from
     // by default set to allow every connection,
     // regardless of origin
-    listen = "0.0.0.0"
-)
+    // listen = "0.0.0.0"
+// )
 
 var (
     // Map to store flipnote sessions in
@@ -53,7 +68,18 @@ var (
     // txts := []string{"delete", "download", "eula", "upload"}
 
     // template/static ugomenus
-    indexUGO = ugo.Ugomenu{
+    indexUGO = ugo.Ugomenu{}
+    gridBaseUGO = ugo.Ugomenu{}
+)
+
+// keep this here so that server.go doesn't get too messy
+func setBaseUGO(ugo *ugo.Ugomenu, t ugo.Ugomenu) {
+    *ugo = t
+}
+
+func ugoworkaroundinit() {
+
+    setBaseUGO(&indexUGO, ugo.Ugomenu{
         Entries: []ugo.MenuEntry{
             {
                 EntryType: 0,
@@ -64,7 +90,7 @@ var (
             {
                 EntryType: 4,
                 Data: []string{
-                    serverUrl + "/front/recent.uls",
+                    configuration.ServerUrl + "/front/recent.uls",
                     "100",
                     base64.StdEncoding.EncodeToString(encUTF16LE("Browse Flipnotes")),
                 },
@@ -78,9 +104,9 @@ var (
                 },
             },
         },
-    }
+    })
 
-    frontBaseUGO = ugo.Ugomenu{
+    setBaseUGO(&gridBaseUGO, ugo.Ugomenu{
         Entries: []ugo.MenuEntry{
             {
                 EntryType: 0,
@@ -89,5 +115,5 @@ var (
                 },
             },
         },
-    }
-)
+    })
+}
