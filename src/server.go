@@ -85,7 +85,8 @@ func main() {
     h := mux.NewRouter() // hatena
 
     // http's servemux works fine for this
-    n := http.NewServeMux() // nas
+    // nas is required
+//    n := http.NewServeMux() // nas
 
     // didn't produce desired results, using
     // basic "read file, return it if it exists" handler
@@ -126,10 +127,11 @@ func main() {
     // may or may not survive next update
     h.Path("/flipnotes/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
 
-    n.HandleFunc("/", nasAuth)
+    h.Path("/ac").HandlerFunc(nasAuth)
+    h.Path("/pr").HandlerFunc(nasAuth)
 
     // define servers
-    nas := &http.Server{Addr: configuration.Listen + ":9001", Handler: n}
+//    nas := &http.Server{Addr: configuration.Listen + ":9001", Handler: n}
     hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}
 
     // start on separate thread
@@ -144,20 +146,20 @@ func main() {
     // use wiimmfi/kaeru nas
     // wiimmfi seems to be kinda weird and unstable because
     // it returns a 404 on /ac or /pr randomly
-    if configuration.EnableNas {
-
-        infolog.Println("(nas) starting server...")
-
-        // start on separate thread
-        go func() {
-            err := nas.ListenAndServe()
-            if err != http.ErrServerClosed {
-                errorlog.Fatalf("(nas) server error: %v", err)
-            }
-        }()
-    } else {
-        infolog.Println("(nas) enableNas set to false, not hosting")
-    }
+//    if configuration.EnableNas {
+//
+//        infolog.Println("(nas) starting server...")
+//
+//        // start on separate thread
+//        go func() {
+//            err := nas.ListenAndServe()
+//            if err != http.ErrServerClosed {
+//                errorlog.Fatalf("(nas) server error: %v", err)
+//            }
+//        }()
+//    } else {
+//        infolog.Println("(nas) enableNas set to false, not hosting")
+//    }
 
 
     // wait and do a graceful exit on ctrl-c / sigterm
@@ -171,9 +173,9 @@ func main() {
         errorlog.Fatalf("graceful shutdown failed! %v", err)
     }
 
-    if configuration.EnableNas { if err := nas.Shutdown(ctx); err != nil {
-        errorlog.Fatalf("(nas) graceful shutdown failed! %v", err)
-    } }
+//    if configuration.EnableNas { if err := nas.Shutdown(ctx); err != nil {
+//        errorlog.Fatalf("(nas) graceful shutdown failed! %v", err)
+//    } }
 
     infolog.Println("server shutdown")
 }

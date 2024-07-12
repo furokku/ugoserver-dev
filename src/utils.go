@@ -38,7 +38,18 @@ func randAsciiString(size int) string {
 // nas response uses base64 with * and -
 // in place of = and + due to url reserved chars
 func nasDecode(data string) string {
-    decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(strings.ReplaceAll(data, "-", "+"), "*", "="))
+    decoded, err := base64.StdEncoding.DecodeString(strings.Map(func(r rune) rune {
+        switch r {
+        case '*':
+            return '='
+        case '-':
+            return '+'
+        case '.':
+            return '/'
+        default:
+            return r
+        }
+    }, data))
     if err != nil {
         warnlog.Printf("(nas) decoding base64 string %v failed with error %v", data, err)
         return ""
@@ -58,7 +69,18 @@ func nasEncode(data any) string {
         encoded = base64.StdEncoding.EncodeToString(data)
     }
 
-    return strings.ReplaceAll(strings.ReplaceAll(encoded, "+", "-"), "=", "*")
+    return strings.Map(func(r rune) rune {
+        switch r {
+        case '=':
+            return '*'
+        case '+':
+            return '-'
+        case '/':
+            return '.'
+        default:
+            return r
+        }
+    }, encoded)
 }
 
 
