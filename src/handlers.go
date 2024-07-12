@@ -19,59 +19,6 @@ import (
 )
 
 
-// probably needs a rewrite
-// No UGOs are requested at the root so this can go
-// Doesn't send any special headers either so not really
-// important for logging
-// func handleUgo(w http.ResponseWriter, r *http.Request) {
-// 
-//     log.Printf("%v requested %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
-// 
-//     // there was method checking code here
-//     // but gorilla mux exists
-// 
-//     vars := mux.Vars(r)
-//     switch vars["ugo"] {
-// 
-//         case "index":
-//             w.Write(indexUGO.Pack())
-//         default:
-//             w.WriteHeader(http.StatusNotFound)
-//     }
-// 
-//     return
-// }
-
-
-// Replace this (eventually)
-/* func returnFromFs(w http.ResponseWriter, r *http.Request) {
-
-    log.Printf("received %v request to %v%v with header %v\n", r.Method, r.Host, r.URL, r.Header)
-
-    // Why did I even do this this way?
-    // This is stupid and should be replaced with
-    // a different handler entirely
-    // 
-    // This approach is stupid and insecure and blehhh!!!
-    // but for now it works so I'll put it off
-
-    // TODO: The eula and etc files should probably be read and stored
-    // ~~within the server~~ elsewhere
-    // That would allow the base files to be in utf8 and get rid of
-    // essentially the empty folders that are in
-    // hatena/static/ds/ and get rid of some code i dont like
-    //
-    // done
-    data, err := os.ReadFile(dataPath + r.URL.Path)
-    if err != nil {
-        http.Error(w, "not found", http.StatusNotFound)
-        log.Printf("response 404 at %v%v (file handler): %v", r.Host, r.URL.Path, err)
-        return
-    }
-
-    w.Write(data)
-    log.Printf("response 200 at %v%v with headers %v", r.Host, r.URL.Path, w.Header())
-} */
 
 // Not my finest code up there so we're doing this a better way
 func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +151,6 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 }
 
 
-
 // I have no idea why this is needed
 // nor what it does
 // Changes some statistic in the flipnote viewer maybe?
@@ -235,17 +181,6 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     w.Write(encUTF16LE(string(text)))
 }
 
-
-// Simply log the request and do nothing
-// Replaced by a catchall function
-/* func sendWip(w http.ResponseWriter, r *http.Request) {
-    log.Printf("received request to %v%v with header %v", r.Host, r.URL.Path, r.Header)
-
-    vars := mux.Vars(r)
-    ppmPath := serverUrl + "/flipnotes/" + vars["filename"] + ".ppm"
-
-    w.Write([]byte("<html><head><meta name=\"upperlink\" content=\"" + ppmPath + "\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"" + ppmPath + "\"></head><body><p>wip<br>obviously this would be unfinished</p></body></html>"))
-} */
 
 // accept flipnotes uploaded thru internal ugomemo:// url
 // or flipnote.post url

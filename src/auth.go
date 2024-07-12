@@ -16,19 +16,6 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     infolog.Printf("%v made %v request to %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.URL.Path, r.Header)
 
-    // feels kinda redundant but i wrote this
-    // earlier and don't feel like removing it (entirely)
-//  match, _ := regexp.MatchString("/ds/v2(-[a-z]{2})?/auth", r.URL.Path)
-//  vars := mux.Vars(r)
-
-    // verify region in auth url is correct
-    // mux inline regex works so this can be commented out
-//  if !slices.Contains(regions, vars["reg"]) {
-//      http.Error(w, "invalid region", http.StatusNotFound)
-//      log.Printf("response 404 (invalid region) at %v%v", r.Host, r.URL.Path)
-//      return
-//  }
-
     switch r.Method {
 
     // > only GET and POST requests will

@@ -84,21 +84,6 @@ func main() {
     // a range of urls, then filtering them as needed
     h := mux.NewRouter() // hatena
 
-    // http's servemux works fine for this
-    // nas is required
-//    n := http.NewServeMux() // nas
-
-    // didn't produce desired results, using
-    // basic "read file, return it if it exists" handler
-//  fs := http.FileServer(http.Dir("./static"))
-//  h.Handle("/", denyIndex(fs))
-
-    // v1
-    // likely not going to support this because it's just
-    // going to be a giant hassle
-//  m.Path("/ds/{sub}/{ugo}.ugo").HandlerFunc(ugoHandler)
-//  m.Path("/ds/{ugo}.ugo").HandlerFunc(ugoHandler)
-//  m.Path("/ds/auth").HandlerFunc(hatenaAuthHandler)
 
     // TODO: tv-jp
     // v2-us, v2-eu, v2-jp, v2 auth
@@ -131,7 +116,6 @@ func main() {
     h.Path("/pr").HandlerFunc(nasAuth)
 
     // define servers
-//    nas := &http.Server{Addr: configuration.Listen + ":9001", Handler: n}
     hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}
 
     // start on separate thread
@@ -141,26 +125,6 @@ func main() {
             errorlog.Fatalf("server error: %v", err)
         }
     }()
-
-    // need to choose whether to use own nas auth or to
-    // use wiimmfi/kaeru nas
-    // wiimmfi seems to be kinda weird and unstable because
-    // it returns a 404 on /ac or /pr randomly
-//    if configuration.EnableNas {
-//
-//        infolog.Println("(nas) starting server...")
-//
-//        // start on separate thread
-//        go func() {
-//            err := nas.ListenAndServe()
-//            if err != http.ErrServerClosed {
-//                errorlog.Fatalf("(nas) server error: %v", err)
-//            }
-//        }()
-//    } else {
-//        infolog.Println("(nas) enableNas set to false, not hosting")
-//    }
-
 
     // wait and do a graceful exit on ctrl-c / sigterm
     sig := <- sigs
@@ -172,10 +136,6 @@ func main() {
     if err := hatena.Shutdown(ctx); err != nil {
         errorlog.Fatalf("graceful shutdown failed! %v", err)
     }
-
-//    if configuration.EnableNas { if err := nas.Shutdown(ctx); err != nil {
-//        errorlog.Fatalf("(nas) graceful shutdown failed! %v", err)
-//    } }
 
     infolog.Println("server shutdown")
 }

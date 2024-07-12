@@ -25,8 +25,6 @@ type (
     }
 
     Configuration struct {
-        EnableNas bool `json:"enableNas"`
-
         Listen    string `json:"listen"`
         ServerUrl string `json:"serverUrl"`
 
@@ -40,32 +38,9 @@ type (
     }
 )
 
-// added better config
-// const (
-    // enable the NAS functionality in the server
-    // recommended to use wiimmfi
-    // enableNas = true
-
-    // sane default paths for commonly accessed things
-    // staticPath = "/srv/hatena/static"
-    // dataPath = "/srv/hatena/hatena_storage"
-    // serverUrl = "http://flipnote.hatena.com"
-
-    // ip to allow connections from
-    // by default set to allow every connection,
-    // regardless of origin
-    // listen = "0.0.0.0"
-// )
-
 var (
     // Map to store flipnote sessions in
     sessions = make(map[string]struct{fsid string; username string; issued time.Time})
-
-    // only the regions that are listed can be accessed thru /ds/xxxxx/foo/bar
-    // not necessary because i realized that half of these things
-    // can just be done with a simple regex statement while assigning handlers
-    // regions = []string{"v2-us", "v2-eu", "v2-jp", "v2"} // TODO: tv-jp (?)
-    // txts := []string{"delete", "download", "eula", "upload"}
 
     // template/static ugomenus
     indexUGO = ugo.Ugomenu{}
