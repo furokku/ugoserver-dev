@@ -8,15 +8,22 @@ import (
 
 const magic string = "UGAR"
 
-type Ugomenu struct {
-    Entries []MenuEntry
-    Embed [][]byte
-}
 
-type MenuEntry struct {
-    EntryType uint
-    Data []string
-}
+
+type (
+    Ugomenu struct {
+        Entries []MenuEntry
+        Embed [][]byte
+    }
+
+    MenuEntry struct {
+        EntryType uint
+        Data []string
+    }
+
+    JsonUgo struct {
+    }
+)
 
 
 func (u Ugomenu) UgoHandle() http.HandlerFunc {

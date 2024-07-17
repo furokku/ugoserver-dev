@@ -36,11 +36,18 @@ type (
         DbPass    string `json:"dbPass"`
         DbName    string `json:"dbName"`
     }
+
+    session struct {
+        fsid string
+        username string
+        issued time.Time
+        ip string
+    }
 )
 
 var (
     // Map to store flipnote sessions in
-    sessions = make(map[string]struct{fsid string; username string; issued time.Time})
+    sessions = make(map[string]session)
 
     // template/static ugomenus
     indexUGO = ugo.Ugomenu{}

@@ -2,8 +2,6 @@ package main
 
 
 import (
-    "fmt"
-
     "io"
     "net/http"
     "net/url"
@@ -11,56 +9,45 @@ import (
     "time"
 )
 
+var nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
+
 
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
-
-    infolog.Printf("%v made %v request to %v%v with header %v\n", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.URL.Path, r.Header)
 
     switch r.Method {
 
     // > only GET and POST requests will
     // > ever be sent
-    // correction: initial rev of flipnote studio sends
+    // initial rev of flipnote studio sends
     // two GET requests, will need to consider later
     // how to handle that
     //
     // Likely wont
     case "GET":
 
-        // seems like it's used to handle some sort of
-        // server-wide notifications, as opposed to
-        // user-specific ones which could be set later
-        // TODO: Maybe this but seems unnecessary
-        // Could be read from database if implemented
-        const serverUnread int = 0
-
-        if (serverUnread != 0) && (serverUnread != 1) {
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        } else {
-            w.Header()["X-DSi-Unread-Notices"] = []string{fmt.Sprint(serverUnread)}
-            w.Header()["X-DSi-New-Notices"] = []string{fmt.Sprint(serverUnread)}
-        }
+        // pointless atm
+        w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
+        w.Header()["X-DSi-New-Notices"] = []string{"0"}
 
         // TODO: validate auth challenge
-        // I know it has something to do with XOR keys
-        // but is it really needed? probably not
-        w.Header()["X-DSi-Auth-Challenge"] = []string{randAsciiString(8)}
+        // something to do with XOR keys
+        // is it really needed? probably not
+        w.Header()["X-DSi-Auth-Challenge"] = []string{"mangoloco"}
         w.Header()["X-DSi-SID"] = []string{genUniqueSession()}
 
     case "POST":
 
         req := AuthPostRequest{
-            mac:      r.Header.Get("X-Dsi-Mac"),
-            id:       r.Header.Get("X-Dsi-Id"),          // FSID
-            auth:     r.Header.Get("X-Dsi-Auth-Response"), // TODO: check this
+            mac:      r.Header.Get("X-Dsi-Mac"), //console mac
+            id:       r.Header.Get("X-Dsi-Id"), //fsid
+            auth:     r.Header.Get("X-Dsi-Auth-Response"),
             sid:      r.Header.Get("X-Dsi-Sid"),
-            ver:      r.Header.Get("X-Ugomemo-Version"), // maybe only accept V2: done, mux regex does same thing
-            username: r.Header.Get("X-Dsi-User-Name"),   // TODO: store this: done
+            ver:      r.Header.Get("X-Ugomemo-Version"),
+            username: r.Header.Get("X-Dsi-User-Name"),
             region:   r.Header.Get("X-Dsi-Region"),
             lang:     r.Header.Get("X-Dsi-Lang"),
             country:  r.Header.Get("X-Dsi-Country"),
-            birthday: r.Header.Get("X-Birthday"),        // weird how this one doesn't have DSi in it
+            birthday: r.Header.Get("X-Birthday"),
             datetime: r.Header.Get("X-Dsi-Datetime"),
             color:    r.Header.Get("X-Dsi-Color"),
         }
@@ -69,17 +56,14 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 //      if !req.validate() {
         if false {
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            w.Write(encUTF16LE("error authenticating!"))
+            w.Write(encUTF16LE("eat concrete"))
             return
         } else {
-            sessions[req.sid] = struct{
-                fsid string
-                username string
-                issued time.Time
-            } {
+            sessions[req.sid] = session{
                 fsid: req.id,
                 username: decReqUsername(req.username),
                 issued: time.Now(),
+                ip: r.Header.Get("X-Real-Ip"),
             }
 
             w.Header()["X-DSi-SID"] = []string{req.sid}
@@ -91,35 +75,20 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             w.Header()["X-DSi-New-Notices"] = []string{"0"}
             w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
 
-            debuglog.Printf("successfully authenticated new session %v: %v\n", req.sid, sessions[req.sid])
+            debuglog.Printf("new session %v : %v\n", req.sid, sessions[req.sid])
 //          log.Println(sessions)
         }
-
-    // technically no longer needed
-    // but I'll keep it just coz
-    default:
-        w.WriteHeader(http.StatusMethodNotAllowed)
-        return
     }
 
     w.WriteHeader(http.StatusOK)
-    infolog.Printf("responded to %v's request for %v%v with %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, w.Header())
 }
 
 func nasAuth(w http.ResponseWriter, r *http.Request) {
 
-    // deny requests other than POST
-    // this IS necessary because of requests being handled by
-    // http.DefaultServeMux and not gorilla mux
-    if r.Method != "POST" {
-        w.WriteHeader(http.StatusMethodNotAllowed)
-        return
-    }
-
     body, _ := io.ReadAll(r.Body)
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
-        errorlog.Printf("error parsing urlencoded form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        errorlog.Printf("bad form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
@@ -135,7 +104,6 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // from a logging standpoint, but you can just add in string(body)
     // here if you wish to see it
     // might add a config option for that later when that exists
-    infolog.Printf("%v requested %v%v with headers %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, r.Header)
 
     resp := make(url.Values)
 
@@ -152,7 +120,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                     resp.Set("locator", nasEncode("gamespy.com"))
                     resp.Set("retry", nasEncode("0"))
                     resp.Set("returncd", nasEncode("001"))
-                    resp.Set("token", nasEncode(append([]byte("NDS"), randBytes(96)...)))
+                    resp.Set("token", nasEncode([]byte(nastoken)))
 
                 default:
                     w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy

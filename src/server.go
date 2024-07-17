@@ -87,6 +87,7 @@ func main() {
 
     // TODO: tv-jp
     // v2-us, v2-eu, v2-jp, v2 auth
+    // maybe v1
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
@@ -102,6 +103,7 @@ func main() {
 
     // return a built ugo file with flipnotes
     // only implemented recent so far
+    // TODO: move this to /ds/v2-xx/foo/bar
     h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage)
 
     // uploading
@@ -110,10 +112,15 @@ func main() {
 
     // related to fetching flipnotes
     // may or may not survive next update
-    h.Path("/flipnotes/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
+    h.Path("/flipnotes/{id}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
 
-    h.Path("/ac").HandlerFunc(nasAuth)
-    h.Path("/pr").HandlerFunc(nasAuth)
+    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
+    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+
+    h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
+    h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
+
+    h.Use(loggerMiddleware)
 
     // define servers
     hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}

@@ -3,12 +3,14 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"golang.org/x/text/encoding/unicode"
+
 	"fmt"
 	"strings"
-	"time"
 
-	"golang.org/x/text/encoding/unicode"
+	"time"
 )
+
 
 var (
     utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
@@ -192,4 +194,15 @@ func editCountPad(count uint16) string {
     }
 
     return fmt.Sprintf("%03d", count)
+}
+
+
+func reverse[T comparable](a []T) []T {
+    r := make([]T, len(a))
+    for i := len(a)/2-1; i >= 0; i-- {
+        o := len(a)-1-i
+
+        r[i], r[o] = a[o], a[i]
+    }
+    return r
 }

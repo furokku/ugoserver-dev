@@ -23,12 +23,12 @@ func getFrontFlipnotes(q string, p int) ([]flipnote, int) {
     offset := findOffset(p)
     switch q {
     case "recent":
-        orderby = "uploaded_at"
+        orderby = "id"
     default:
-        orderby = "uploaded_at"
+        orderby = "id"
     }
 
-    rows, err := db.Query("SELECT * FROM flipnotes ORDER BY $1 DESC LIMIT 50 OFFSET $2", orderby, offset)
+    rows, err := db.Query("SELECT * FROM flipnotes ORDER BY $1 ASC LIMIT 50 OFFSET $2", orderby, offset)
     if err != nil {
         // TODO: return an error for this and below and other stuff
         errorlog.Printf("failed to access database: %v", err)
@@ -46,12 +46,12 @@ func getFrontFlipnotes(q string, p int) ([]flipnote, int) {
     defer rows2.Close()
 
     for rows.Next() {
-        var id int
-        var author, filename string
-        var uploaded_at time.Time
+        var id, l int
+        var aid, an, paid, pan, afn string
+        var u time.Time
 
-        rows.Scan(&id, &author, &filename, &uploaded_at)
-        resp = append(resp, flipnote{id:id, author:author, filename:filename, uploaded_at:uploaded_at})
+        rows.Scan(&id, &aid, &an, &paid, &pan, &afn, &u, &l)
+        resp = append(resp, flipnote{id:id, author_id:aid, author_name:an, parent_author_id:paid, parent_author_name:pan, author_filename:afn, uploaded_at:u, lock:l})
     }
 
     // this returns only one row, so this is fine

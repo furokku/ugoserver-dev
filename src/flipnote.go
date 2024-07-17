@@ -8,20 +8,21 @@ import (
 
 type flipnote struct {
     id int
-    author string
-    filename string
+    author_id string
+    author_name string
+    parent_author_id string
+    parent_author_name string
+    author_filename string
     uploaded_at time.Time
+    lock int
 }
 
 type tmb []byte
 var tmbSize int = 0x6A0
 
-// Get the TMB for a given flipnote
-// Used for flipnote previews on menu type 2
-// Returns nil if failed to read file
-func (f flipnote) getTmb() tmb {
+func (f flipnote) TMB() tmb {
     buf := make([]byte, tmbSize)
-    path := fmt.Sprintf(configuration.HatenaDir + "/hatena_storage/flipnotes/%s.ppm", f.filename)
+    path := fmt.Sprintf(configuration.HatenaDir + "/hatena_storage/flipnotes/%d.ppm", f.id)
 
     file, err := os.Open(path)
     if err != nil {
