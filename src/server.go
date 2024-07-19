@@ -97,6 +97,7 @@ func main() {
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
+    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo:(?:index)}.ugo").Methods("GET").HandlerFunc(indexUGO.UgoHandle())
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
@@ -112,7 +113,7 @@ func main() {
 
     // related to fetching flipnotes
     // may or may not survive next update
-    h.Path("/flipnotes/{id}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(serveFlipnotes)
+    h.Path("/flipnotes/{id}.{ext:(?:ppm|htm|info|dl|delete|star)}").Methods("GET", "POST").HandlerFunc(serveFlipnotes)
 
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)

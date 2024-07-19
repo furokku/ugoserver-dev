@@ -52,6 +52,8 @@ var (
     // template/static ugomenus
     indexUGO = ugo.Ugomenu{}
     gridBaseUGO = ugo.Ugomenu{}
+
+    prettyPageTypes = map[string]string{"recent":"Recent"}
 )
 
 // keep this here so that server.go doesn't get too messy

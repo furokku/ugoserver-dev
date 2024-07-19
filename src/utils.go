@@ -206,3 +206,11 @@ func reverse[T comparable](a []T) []T {
     }
     return r
 }
+
+func btoi(b bool) int {
+    if b {
+        return 1
+    } else {
+        return 0
+    }
+}

@@ -26,38 +26,54 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
 
     id := vars["id"]
+    idn, err := strconv.Atoi(id)
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
     ext := vars["ext"]
 
-    path := "/flipnotes/" + id + ".ppm"
+    path := "/flipnotes/" + id
 
     switch ext {
-        case "ppm":
-            data, err := os.ReadFile(configuration.HatenaDir + "/hatena_storage" + path)
-            if err != nil {
-                w.WriteHeader(http.StatusNotFound)
-                return
-            }
+    case "star":
+        //todo
+        w.WriteHeader(http.StatusOK)
+        return
 
-            w.Write(data)
-//          log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
-            return
+    case "dl":
+        updateViewDlCount(idn, ext)
+        w.WriteHeader(http.StatusOK)
+        return
 
-        case "htm":
-            if fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path); err == nil {
-                w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path, configuration.ServerUrl+path, id, fi.Size(), fi.ModTime())))
-                return
-            } else {
-                w.WriteHeader(http.StatusNotFound)
-                return
-            }
-
-        case "info":
-            w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
-            return
-
-        default:
+    case "ppm":
+        data, err := os.ReadFile(configuration.HatenaDir + "/hatena_storage" + path + ".ppm")
+        if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
+        }
+
+        updateViewDlCount(idn, ext)
+        w.Write(data)
+//          log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
+        return
+
+    case "htm":
+        if fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path + ".ppm"); err == nil {
+            w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", id, fi.Size(), fi.ModTime())))
+            return
+        } else {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+
+    case "info":
+        w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
+        return
+
+    default:
+        w.WriteHeader(http.StatusNotFound)
+        return
     }
 }
 
@@ -77,13 +93,12 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         // do NOT print error message if the query is empty
         page = 1
     } else if err != nil {
-        // When the page isn't specified this should be expected
-        // TODO: get rid of this under above condition: done
         infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
         page = 1
     }
 
     flipnotes, total := getFrontFlipnotes(pageType, page)
+    pagemax := countPages(total)
 
     // Add top screen titles
     base.Entries = append(base.Entries, ugo.MenuEntry{
@@ -91,14 +106,14 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         Data: []string{
             "0",
             base64.StdEncoding.EncodeToString(encUTF16LE("Front page")),
-            base64.StdEncoding.EncodeToString(encUTF16LE(fmt.Sprintf("Page %d / %d", page, countPages(total)))),
+            base64.StdEncoding.EncodeToString(encUTF16LE(fmt.Sprintf("Page %d / %d", page, pagemax))),
         },
     })
     base.Entries = append(base.Entries, ugo.MenuEntry{
         EntryType: 2, // category
         Data: []string{
             configuration.ServerUrl + "/front/recent.uls",
-            base64.StdEncoding.EncodeToString(encUTF16LE(pageType)),
+            base64.StdEncoding.EncodeToString(encUTF16LE(prettyPageTypes[pageType])),
             "1",
         },
     })
@@ -107,14 +122,25 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         base.Entries = append(base.Entries, ugo.MenuEntry{
             EntryType: 4,
             Data: []string{
-                fmt.Sprintf(configuration.ServerUrl + "/front/%s.uls?page=%d", pageType, page-1),
+                fmt.Sprintf("%s/front/%s.uls?page=%d", configuration.ServerUrl, pageType, page-1),
                 "100",
                 base64.StdEncoding.EncodeToString(encUTF16LE("Previous page")),
             },
         })
     }
+    if pagemax > page {
+        base.Entries = append(base.Entries, ugo.MenuEntry{
+            EntryType: 4,
+            Data: []string{
+                fmt.Sprintf("%s/front/%s.uls?page=%d", configuration.ServerUrl, pageType, page+1),
+                "100",
+                base64.StdEncoding.EncodeToString(encUTF16LE("Next page")),
+            },
+        })
+    }
 
     for _, f := range flipnotes {
+        lock := btoi(f.lock)
         tempTmb := f.TMB()
         if tempTmb == nil {
             warnlog.Printf("tmb is nil")
@@ -128,8 +154,8 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
                 fmt.Sprintf(configuration.ServerUrl + "/flipnotes/%d.ppm", f.id),
                 "3",
                 "0",
-                "420", // star counter (TODO)
-                fmt.Sprint(f.lock),
+                fmt.Sprint(f.stars["yellow"]),
+                fmt.Sprint(lock),
                 "0", // ??
             },
         })
@@ -138,7 +164,6 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
-    // TODO: add previous/next page buttons
     data := base.Pack()
     //fmt.Println(string(data))
     w.Write(data)
@@ -174,6 +199,9 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     w.Write(encUTF16LE(string(text)))
 }
 
+func handleEulaTsv(w http.ResponseWriter, r *http.Request) {
+    w.Write(append(encUTF16LE("English"), []byte("\ten")...))
+}
 
 // accept flipnotes uploaded thru internal ugomemo:// url
 // or flipnote.post url
@@ -215,12 +243,6 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
     }
 
     fmt.Println(id)
-
-    if _, err := db.Exec("INSERT INTO stars (id) VALUES ($1)", id); err != nil {
-        errorlog.Printf("%v", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
 
     fp, err := os.OpenFile(configuration.HatenaDir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {

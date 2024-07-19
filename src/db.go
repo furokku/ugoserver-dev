@@ -2,62 +2,80 @@ package main
 
 import (
     "time"
+    "fmt"
+    "database/sql"
 )
 
 
-// Fetch the latest uploaded flipnotes.
-// > 54 flipnotes are fetched, if so many exist per given offset
-// > Only really 53 are shown, but the 54th is just to determine whether to
-// > show the next page button
-//
-// Probably terrible practice so 50 flipnotes are requested
-// and the total amount is too in order to build a page count
-// and determine whether the next page button should be there
-func getFrontFlipnotes(q string, p int) ([]flipnote, int) {
+// pass a statement prepared with db.Prepare and return flipnotes
+func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote) {
 
     var resp []flipnote
-    var total int
-    var orderby string
 
-    // find offset by page number
+    rows, err := stmt.Query(args...)
+    if err != nil {
+        errorlog.Printf("failed to access database: %v", err)
+        return []flipnote{}
+    }
+
+    defer rows.Close()
+
+    for rows.Next() {
+        //mess
+        var id, v, dl, ys, gs, rs, bs, ps int
+        var aid, an, paid, pan, afn string
+        var l, del bool
+        var u time.Time
+
+        rows.Scan(&id, &aid, &an, &paid, &pan, &afn, &u, &l, &v, &dl, &ys, &gs, &rs, &bs, &ps, &del)
+        resp = append(resp, flipnote{id:id, author_id:aid, author_name:an, parent_author_id:paid, parent_author_name:pan, author_filename:afn, uploaded_at:u, lock:l, views:v, downloads:dl, stars:map[string]int{"yellow":ys,"green":gs,"red":rs,"blue":bs,"purple":ps}, deleted:del})
+    }
+
+    return resp
+}
+
+func updateViewDlCount(id int, t string) {
+    var set string
+    switch t {
+    case "dl":
+        set = "downloads"
+    case "ppm":
+        set = "views"
+    }
+    if _, err := db.Exec(fmt.Sprintf("UPDATE flipnotes SET %s = %s + 1 WHERE id = $1", set, set), id); err != nil {
+        errorlog.Printf("%v", err)
+    }
+}
+
+
+func getFrontFlipnotes(ptype string, p int) ([]flipnote, int) {
+    var orderby string
+    var total int
     offset := findOffset(p)
-    switch q {
+
+    switch ptype {
     case "recent":
         orderby = "id"
     default:
         orderby = "id"
     }
 
-    rows, err := db.Query("SELECT * FROM flipnotes ORDER BY $1 ASC LIMIT 50 OFFSET $2", orderby, offset)
+    stmt1, err := db.Prepare(fmt.Sprintf("SELECT * FROM flipnotes WHERE deleted = false ORDER BY %s DESC LIMIT 50 OFFSET $1", orderby))
     if err != nil {
-        // TODO: return an error for this and below and other stuff
-        errorlog.Printf("failed to access database: %v", err)
+        errorlog.Printf("error preparing statement %v", err)
         return []flipnote{}, 0
     }
 
-    // get amount of total flipnotes in order to do some math
-    rows2, err := db.Query("SELECT count(1) FROM flipnotes")
+    stmt2, err := db.Prepare("SELECT count(1) FROM flipnotes WHERE deleted = false")
     if err != nil {
-        errorlog.Printf("failed to access database: %v", err)
+        errorlog.Printf("error preparing statement %v", err)
         return []flipnote{}, 0
     }
 
-    defer rows.Close()
-    defer rows2.Close()
-
-    for rows.Next() {
-        var id, l int
-        var aid, an, paid, pan, afn string
-        var u time.Time
-
-        rows.Scan(&id, &aid, &an, &paid, &pan, &afn, &u, &l)
-        resp = append(resp, flipnote{id:id, author_id:aid, author_name:an, parent_author_id:paid, parent_author_name:pan, author_filename:afn, uploaded_at:u, lock:l})
+    if err := stmt2.QueryRow().Scan(&total); err != nil {
+        errorlog.Print(err)
+        return []flipnote{}, 0
     }
 
-    // this returns only one row, so this is fine
-    // a failsafe should not be needed
-    rows2.Next()
-    rows2.Scan(&total)
-
-    return resp, total
+    return queryDbFlipnotes(stmt1, offset), total
 }

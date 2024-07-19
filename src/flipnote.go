@@ -14,7 +14,11 @@ type flipnote struct {
     parent_author_name string
     author_filename string
     uploaded_at time.Time
-    lock int
+    lock bool
+    views int
+    downloads int
+    stars map[string]int
+    deleted bool
 }
 
 type tmb []byte
@@ -44,6 +48,7 @@ func (f flipnote) TMB() tmb {
 
 // return whether a flipnote is locked
 // 0 if not, 1 if it is
+//not necessary anymore
 func (t tmb) flipnoteIsLocked() int {
     l := int( t[0x10] )
 

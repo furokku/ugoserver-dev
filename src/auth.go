@@ -122,7 +122,13 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                     resp.Set("returncd", nasEncode("001"))
                     resp.Set("token", nasEncode([]byte(nastoken)))
 
+                case "acctcreate":
+                    resp.Set("retry", nasEncode("0"))
+                    resp.Set("returncd", nasEncode("002"))
+                    resp.Set("userid", nasEncode("notimportant"))
+
                 default:
+                    debuglog.Printf("action %s", action)
                     w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy
                     return
             }
@@ -133,10 +139,6 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
             // a simple check could be added here for completeness
             resp.Set("prwords", nasEncode("0"))
             resp.Set("returncd", nasEncode("000"))
-
-        default:
-            w.WriteHeader(http.StatusNotFound) // invalid endpoint
-            return
     }
 
     // datetime will be sent regardless
