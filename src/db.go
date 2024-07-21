@@ -47,6 +47,11 @@ func updateViewDlCount(id int, t string) {
     }
 }
 
+func deleteFlipnote(id int) {
+    if _, err := db.Exec("UPDATE flipnotes SET deleted = true WHERE id = $1", id); err != nil {
+        errorlog.Printf("%v", err)
+    }
+}
 
 func getFrontFlipnotes(ptype string, p int) ([]flipnote, int) {
     var orderby string
@@ -78,4 +83,14 @@ func getFrontFlipnotes(ptype string, p int) ([]flipnote, int) {
     }
 
     return queryDbFlipnotes(stmt1, offset), total
+}
+
+func getFlipnoteById(id int) flipnote {
+    stmt, err := db.Prepare("SELECT * FROM flipnotes WHERE deleted = false AND id = $1")
+    if err != nil {
+        errorlog.Printf("%v", err)
+        return flipnote{}
+    }
+
+    return queryDbFlipnotes(stmt, id)[0]
 }

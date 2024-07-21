@@ -1,0 +1,13 @@
+{
+    "layout": [0],
+
+    "items": [
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=recent&page=1", "label": "Browse Flipnotes", "icon": 104},
+        {"type": "button", "url": "ugomemo://postmemo", "label": "Post a Flipnote", "icon": 102},
+        {"type": "button", "url": "ugomemo://postmemo", "label": "Post a Flipnote", "icon": 0}
+    ],
+
+    "embed": [
+        "/srv/hatena/tools/ntft/demo.ntft"
+    ]
+}

@@ -6,7 +6,7 @@ import (
 
     "fmt"
     "encoding/json"
-    "io"
+    "strings"
 
     "github.com/gorilla/mux"
     "net/http"
@@ -29,13 +29,11 @@ func main() {
         configFile = os.Args[1]
     }
 
-    temp, err := os.Open(configFile)
+    cbytes, err := os.ReadFile(configFile)
     if err != nil {
         errorlog.Fatalf("failed to open config file: %v", err)
     }
-    defer temp.Close()
 
-    cbytes, _ := io.ReadAll(temp)
     json.Unmarshal(cbytes, &configuration)
 
     if err != nil {
@@ -45,7 +43,23 @@ func main() {
 
     // temporary workaround until i come up with a better format
     // for static/template ugos that don't need to change
-    ugoworkaroundinit()
+//  ugoworkaroundinit()
+    // done
+    ugos, err := os.ReadDir(configuration.HatenaDir + "/ugo")
+    if err != nil {
+        errorlog.Printf("%v", err)
+    }
+    for _, ugo := range ugos {
+        name := strings.Split(ugo.Name(), ".")[0]
+        bytes, err := os.ReadFile(configuration.HatenaDir + "/ugo/" + ugo.Name())
+        if err != nil {
+            errorlog.Printf("%v", err)
+        }
+        piss := JsonUgo{}
+        json.Unmarshal(bytes, &piss)
+
+        loadedUgos[name] = piss.Parse()
+    }
 
     // prep graceful exit
     sigs := make(chan os.Signal, 1)
@@ -99,13 +113,13 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{ugo:(?:index)}.ugo").Methods("GET").HandlerFunc(indexUGO.UgoHandle())
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(loadedUgos["index"].UgoHandle())
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
 
     // return a built ugo file with flipnotes
     // only implemented recent so far
     // TODO: move this to /ds/v2-xx/foo/bar
-    h.Path("/front/{type:(?:recent|liked|random)}.ugo").Methods("GET").HandlerFunc(serveFrontPage)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp|xx))?}/feed.ugo").Methods("GET").HandlerFunc(serveFrontPage)
 
     // uploading
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote)

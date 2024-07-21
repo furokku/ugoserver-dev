@@ -1,9 +1,6 @@
 package main
 
 import (
-    "encoding/base64"
-    "floc/ugoserver/ugo"
-
     "time"
 )
 
@@ -50,50 +47,52 @@ var (
     sessions = make(map[string]session)
 
     // template/static ugomenus
-    indexUGO = ugo.Ugomenu{}
-    gridBaseUGO = ugo.Ugomenu{}
+    indexUGO = Ugomenu{}
+    gridBaseUGO = Ugomenu{}
 
     prettyPageTypes = map[string]string{"recent":"Recent"}
+
+    loadedUgos = make(map[string]Ugomenu)
 )
 
 // keep this here so that server.go doesn't get too messy
-func setBaseUGO(ugo *ugo.Ugomenu, t ugo.Ugomenu) {
+func setBaseUGO(ugo *Ugomenu, t Ugomenu) {
     *ugo = t
 }
 
 func ugoworkaroundinit() {
 
-    setBaseUGO(&indexUGO, ugo.Ugomenu{
-        Entries: []ugo.MenuEntry{
+    setBaseUGO(&indexUGO, Ugomenu{
+        Entries: []MenuEntry{
             {
-                EntryType: 0,
+                Type: 0,
                 Data: []string{
                     "0",
                 },
             },
             {
-                EntryType: 4,
+                Type: 4,
                 Data: []string{
-                    configuration.ServerUrl + "/front/recent.uls",
+                    configuration.ServerUrl + "/ds/v2-xx/feed.uls?mode=recent&page=1",
                     "100",
-                    base64.StdEncoding.EncodeToString(encUTF16LE("Browse Flipnotes")),
+                    q("Browse Flipnotes"),
                 },
             },
             {
-                EntryType: 4,
+                Type: 4,
                 Data: []string{
                     "ugomemo://postmemo",
                     "102",
-                    base64.RawStdEncoding.EncodeToString(encUTF16LE("Post a Flipnote")),
+                    q("Post a Flipnote"),
                 },
             },
         },
     })
 
-    setBaseUGO(&gridBaseUGO, ugo.Ugomenu{
-        Entries: []ugo.MenuEntry{
+    setBaseUGO(&gridBaseUGO, Ugomenu{
+        Entries: []MenuEntry{
             {
-                EntryType: 0,
+                Type: 0,
                 Data: []string{
                     "2",
                 },

@@ -5,7 +5,6 @@ import (
     "os"
     "io"
 
-    "floc/ugoserver/ugo"
     "fmt"
 
     "github.com/gorilla/mux"
@@ -59,13 +58,13 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        if fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path + ".ppm"); err == nil {
-            w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", id, fi.Size(), fi.ModTime())))
-            return
-        } else {
+        fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path + ".ppm")
+        if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
         }
+        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", id, fi.Size(), fi.ModTime())))
+        return
 
     case "info":
         w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
@@ -82,10 +81,9 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 // recent, hot, most liked, etc..
 func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     
-    vars := mux.Vars(r)
     base := gridBaseUGO
 
-    pageType := vars["type"]
+    pageType := r.URL.Query().Get("mode")
     pageQ := r.URL.Query().Get("page")
 
     page, err := strconv.Atoi(pageQ)
@@ -101,46 +99,36 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     pagemax := countPages(total)
 
     // Add top screen titles
-    base.Entries = append(base.Entries, ugo.MenuEntry{
-        EntryType: 1,
+    base.Entries = append(base.Entries, MenuEntry{
+        Type: 1,
         Data: []string{
             "0",
-            base64.StdEncoding.EncodeToString(encUTF16LE("Front page")),
-            base64.StdEncoding.EncodeToString(encUTF16LE(fmt.Sprintf("Page %d / %d", page, pagemax))),
+            q("Front page"),
+            q(fmt.Sprintf("Page %d / %d", page, pagemax)),
         },
     })
-    base.Entries = append(base.Entries, ugo.MenuEntry{
-        EntryType: 2, // category
+    base.Entries = append(base.Entries, MenuEntry{
+        Type: 2, // category
         Data: []string{
-            configuration.ServerUrl + "/front/recent.uls",
-            base64.StdEncoding.EncodeToString(encUTF16LE(prettyPageTypes[pageType])),
+            fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1",configuration.ServerUrl, pageType),
+            q(prettyPageTypes[pageType]),
             "1",
         },
     })
 
     if page > 1 {
-        base.Entries = append(base.Entries, ugo.MenuEntry{
-            EntryType: 4,
+        base.Entries = append(base.Entries, MenuEntry{
+            Type: 4,
             Data: []string{
-                fmt.Sprintf("%s/front/%s.uls?page=%d", configuration.ServerUrl, pageType, page-1),
+                fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pageType, page-1),
                 "100",
-                base64.StdEncoding.EncodeToString(encUTF16LE("Previous page")),
-            },
-        })
-    }
-    if pagemax > page {
-        base.Entries = append(base.Entries, ugo.MenuEntry{
-            EntryType: 4,
-            Data: []string{
-                fmt.Sprintf("%s/front/%s.uls?page=%d", configuration.ServerUrl, pageType, page+1),
-                "100",
-                base64.StdEncoding.EncodeToString(encUTF16LE("Next page")),
+                q("Previous"),
             },
         })
     }
 
     for _, f := range flipnotes {
-        lock := btoi(f.lock)
+//      lock := btoi(f.lock)
         tempTmb := f.TMB()
         if tempTmb == nil {
             warnlog.Printf("tmb is nil")
@@ -148,20 +136,32 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        base.Entries = append(base.Entries, ugo.MenuEntry{
-            EntryType: 4,
+        base.Entries = append(base.Entries, MenuEntry{
+            Type: 4,
             Data: []string{
                 fmt.Sprintf(configuration.ServerUrl + "/flipnotes/%d.ppm", f.id),
                 "3",
-                "0",
+                "",
                 fmt.Sprint(f.stars["yellow"]),
-                fmt.Sprint(lock),
+                "765", // ?? what does this do
+                "573", // ??
                 "0", // ??
             },
         })
 
         base.Embed = append(base.Embed, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
+    }
+
+    if pagemax > page {
+        base.Entries = append(base.Entries, MenuEntry{
+            Type: 4,
+            Data: []string{
+                fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pageType, page+1),
+                "100",
+                q("Next"),
+            },
+        })
     }
 
     data := base.Pack()
@@ -226,7 +226,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
     var id int
     aid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x5E : 0x66])))
-    an := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56 ]))
+    an := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56]))
     paid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x56 : 0x5E])))
     pan := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x2A : 0x40]))
     l := int(ppmBody[0x10])

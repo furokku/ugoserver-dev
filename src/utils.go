@@ -214,3 +214,8 @@ func btoi(b bool) int {
         return 0
     }
 }
+
+func q(s string) string {
+    //quick base64 + utf16le
+    return base64.StdEncoding.EncodeToString(encUTF16LE(s))
+}
