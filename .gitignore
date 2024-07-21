@@ -4,6 +4,7 @@ hatena_storage/
 crt/
 
 src/ugoserver
+tools/ntft/ntft
 
 go.sum
 
