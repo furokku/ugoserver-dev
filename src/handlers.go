@@ -81,7 +81,7 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 // recent, hot, most liked, etc..
 func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     
-    base := gridBaseUGO
+    base := loadedUgos["gridbase"]
 
     pageType := r.URL.Query().Get("mode")
     pageQ := r.URL.Query().Get("page")

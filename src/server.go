@@ -43,7 +43,7 @@ func main() {
 
     // temporary workaround until i come up with a better format
     // for static/template ugos that don't need to change
-//  ugoworkaroundinit()
+
     // done
     ugos, err := os.ReadDir(configuration.HatenaDir + "/ugo")
     if err != nil {
