@@ -5,6 +5,7 @@ crt/
 
 src/ugoserver
 tools/ntft/ntft
+tools/npf/npf
 
 go.sum
 

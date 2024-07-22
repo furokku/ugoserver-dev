@@ -19,6 +19,9 @@ func main() {
     }
 
     decoded, _, err := image.Decode(fi)
+    if err != nil {
+        panic(err)
+    }
 
     fmt.Println(decoded.Bounds().Max.X, decoded.Bounds().Max.Y)
     if decoded.Bounds().Max.X != 32 || decoded.Bounds().Max.Y != 32 {
