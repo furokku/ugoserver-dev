@@ -13,5 +13,9 @@ tools/npf/*.png
 tools/npf/*.npf
 
 go.sum
+tools/ntft/go.sum
+tools/npf/go.sum
 
 private/
+
+static/images/ds/
