@@ -17,8 +17,13 @@ import (
     "time"
 )
 
-var db *sql.DB
-var configuration = Configuration{}
+var (
+    db *sql.DB
+    configuration = Configuration{}
+    sessions = make(map[string]session)
+    prettyPageTypes = map[string]string{"recent":"Recent"}
+    loadedUgos = make(map[string]Ugomenu)
+)
 
 func main() {
 
@@ -117,25 +122,27 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
 
     // return a built ugo file with flipnotes
-    // only implemented recent so far
-    // TODO: move this to /ds/v2-xx/foo/bar
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp|xx))?}/feed.ugo").Methods("GET").HandlerFunc(serveFrontPage)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(serveFrontPage)
 
     // uploading
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id:[0-9A-Z]{1}[0-9A-F]{5}_[0-9A-F]{13}_[0-9]{3}}.ppm").Methods("POST").HandlerFunc(postFlipnote)
 
     // related to fetching flipnotes
-    // may or may not survive next update
-    h.Path("/flipnotes/{id}.{ext:(?:ppm|htm|info|dl|delete|star)}").Methods("GET", "POST").HandlerFunc(serveFlipnotes)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete|star)}").Methods("GET", "POST").HandlerFunc(serveFlipnotes)
 
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+
+    h.Path("/ds/imagetest.htm").HandlerFunc(misc)
+    h.Path("/ds/postreplytest.htm").HandlerFunc(misc)
+    h.Path("/ds/v2-us/movie/1.reply").Methods("POST").HandlerFunc(logh)
 
     h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
 
     h.Use(loggerMiddleware)
+
+    h.PathPrefix("/images").HandlerFunc(static)
 
     // define servers
     hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}

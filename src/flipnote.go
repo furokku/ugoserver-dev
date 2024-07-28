@@ -1,27 +1,10 @@
 package main
 
 import (
-    "time"
     "os"
     "fmt"
 )
 
-type flipnote struct {
-    id int
-    author_id string
-    author_name string
-    parent_author_id string
-    parent_author_name string
-    author_filename string
-    uploaded_at time.Time
-    lock bool
-    views int
-    downloads int
-    stars map[string]int
-    deleted bool
-}
-
-type tmb []byte
 var tmbSize int = 0x6A0
 
 func (f flipnote) TMB() tmb {

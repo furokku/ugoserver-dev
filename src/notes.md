@@ -71,6 +71,6 @@ value set to 0 makes flipnote studio navigate to the url in the response body  (
 
 
 ## ugomemo://createmail/{}
-url should be set to ugomemo://createmail, then in `mail/addresses.ugo` set {} to the recipient
-<br>sends POST request to `mail.send` with X-DSi-Mail-To header
-<br>set to whatever is in {}. sent as a mini flipnote, so no sound/colors
+url should be set to ugomemo://createmail<br>
+then it asks for mail/addresses.ugo which is just an ugomenu with a bunch of buttons with the url set to ugomemo://createmail/{id of recipient}<br>
+it then sends POST request to mail.send with X-DSi-Mail-To header with the request body containing a mini flipnote

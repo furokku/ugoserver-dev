@@ -7,6 +7,11 @@ src/ugoserver
 tools/ntft/ntft
 tools/npf/npf
 
+tools/ntft/*.png
+tools/ntft/*.ntft
+tools/npf/*.png
+tools/npf/*.npf
+
 go.sum
 
 private/

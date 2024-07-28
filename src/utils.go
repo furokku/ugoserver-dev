@@ -219,3 +219,12 @@ func q(s string) string {
     //quick base64 + utf16le
     return base64.StdEncoding.EncodeToString(encUTF16LE(s))
 }
+
+func age(s string) int {
+    t, err := time.Parse("20060102", s)
+    if err != nil {
+        return 0
+    }
+
+    return int(time.Now().Sub(t).Hours())/8760
+}

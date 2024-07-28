@@ -1,49 +1,15 @@
 package main
 
 import (
-	"encoding/binary"
-	"fmt"
-        "os"
-	"net/http"
+    "encoding/binary"
+    "fmt"
+    "os"
+    "net/http"
+    "github.com/gorilla/mux"
+    "strings"
 )
 
 const magic string = "UGAR"
-
-type (
-    Ugomenu struct {
-        Entries []MenuEntry
-        Embed [][]byte
-    }
-
-    MenuEntry struct {
-        Type uint
-        Data []string
-    }
-
-    JsonUgo struct {
-        Layout []int `json:"layout"`
-        TopScreenContents struct {
-            URL            string `json:"url,omitempty"`
-            Uppertitle     string `json:"uppertitle,omitempty"`
-            Uppersubleft   string `json:"uppersubleft,omitempty"`
-            Uppersubright  string `json:"uppersubright,omitempty"`
-            Uppersubtop    string `json:"uppersubtop,omitempty"`
-            Uppersubbottom string `json:"uppersubbottom,omitempty"`
-        } `json:"top"`
-        Items []struct {
-            Type     string `json:"type"`
-            URL      string `json:"url"`
-            Label    string `json:"label"`
-            Selected bool `json:"selected,omitempty"`
-            Icon     int `json:"icon,omitempty"`
-            Count    int `json:"count,omitempty"`
-            Lock     int `json:"lock,omitempty"`
-            Unknown1 int `json:"unknown1,omitempty"`
-            Unknown2 int `json:"unknown2,omitempty"`
-        } `json:"items"`
-        Embed []string `json:"embed"`
-    }
-)
 
 
 func (ju JsonUgo) Parse() Ugomenu {
@@ -54,10 +20,9 @@ func (ju JsonUgo) Parse() Ugomenu {
         temp = append(temp, fmt.Sprint(l))
     }
     u.Entries = append(u.Entries, MenuEntry{Type:0, Data:temp})
-    temp = emptystr()
 
     if ju.TopScreenContents.URL != "" {
-        u.Entries = append(u.Entries, MenuEntry{Type:1, Data:[]string{"0", ju.TopScreenContents.URL}})
+        u.Entries = append(u.Entries, MenuEntry{Type:1, Data:[]string{"1", ju.TopScreenContents.URL}})
     } else {
         u.Entries = append(u.Entries, MenuEntry{Type:1, Data:[]string{"0", q(ju.TopScreenContents.Uppertitle), q(ju.TopScreenContents.Uppersubleft), q(ju.TopScreenContents.Uppersubright), q(ju.TopScreenContents.Uppersubtop), q(ju.TopScreenContents.Uppersubbottom) }})
     }
@@ -84,20 +49,18 @@ func (ju JsonUgo) Parse() Ugomenu {
     return u
 }
 
-
 func (u Ugomenu) UgoHandle() http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
-        w.Write(u.Pack())
+        w.Write(u.Pack(mux.Vars(r)["reg"]))
         return
     }
 
     return fn
 }
 
-
 // compile ugomenu to array of bytes
-func (u Ugomenu) Pack() []byte {
+func (u Ugomenu) Pack(r string) []byte {
 
     var header, menus, embedded []byte
     sections := 1 // there is always at least one section
@@ -108,9 +71,9 @@ func (u Ugomenu) Pack() []byte {
         menus = append(menus, 0x0A)
         menus = append(menus, fmt.Sprint(item.Type)...)
 
-        for n := range item.Data {
+        for _, data := range item.Data {
             menus = append(menus, 0x09)
-            menus = append(menus, item.Data[n]...)
+            menus = append(menus, strings.Replace(data, "v2-xx", r, 1)...)
         }
     }
 
@@ -132,26 +95,13 @@ func (u Ugomenu) Pack() []byte {
     }
 
     // Has to be little endian byte order
-    header = append(header, magic...)
+    header = []byte(magic)
     header = binary.LittleEndian.AppendUint32(header, uint32(sections))
     header = binary.LittleEndian.AppendUint32(header, uint32(len(menus)))
     if emb { header = binary.LittleEndian.AppendUint32(header, uint32(len(embedded))) }
     
     return append(header, append(menus, embedded...)...)
 }
-
-
-func (u Ugomenu) AddItem(t uint, v... string) Ugomenu {
-
-    u.Entries = append(u.Entries, MenuEntry{
-        Type: t,
-        Data: v,
-    })
-
-    // wip
-    return u
-}
-
 
 // 4 byte padding for ugomenus
 func padBytes(d []byte) []byte {
@@ -163,9 +113,4 @@ func padBytes(d []byte) []byte {
         }
     }
     return padded
-}
-
-
-func emptystr() []string {
-    return []string{}
 }

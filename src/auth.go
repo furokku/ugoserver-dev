@@ -5,6 +5,7 @@ import (
     "io"
     "net/http"
     "net/url"
+    "errors"
 
     "time"
 )
@@ -25,11 +26,6 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     // Likely wont
     case "GET":
 
-        // pointless atm
-        w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
-        w.Header()["X-DSi-New-Notices"] = []string{"0"}
-
-        // TODO: validate auth challenge
         // something to do with XOR keys
         // is it really needed? probably not
         w.Header()["X-DSi-Auth-Challenge"] = []string{"mangoloco"}
@@ -52,12 +48,12 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             color:    r.Header.Get("X-Dsi-Color"),
         }
 
-        // TODO: function to validate auth request
-//      if !req.validate() {
-        if false {
-            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            w.Write(encUTF16LE("eat concrete"))
-            return
+        if err := req.validate(); err != nil {
+            // funkster detected
+            //w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+            //w.Write(encUTF16LE("eat concrete"))
+            warnlog.Printf("%v did not pass auth validation (because: %v)", r.Header.Get("X-Real-Ip"), err)
+            w.Header()["X-DSi-Unread-Notices"] = []string{"1"}
         } else {
             sessions[req.sid] = session{
                 fsid: req.id,
@@ -67,17 +63,9 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             }
 
             w.Header()["X-DSi-SID"] = []string{req.sid}
-
-            // TODO: handle on per user basis
-            // both of these do the same thing probably but
-            // for convenience sake likely only one
-            // will be set
-            w.Header()["X-DSi-New-Notices"] = []string{"0"}
-            w.Header()["X-DSi-Unread-Notices"] = []string{"0"}
-
             debuglog.Printf("new session %v : %v\n", req.sid, sessions[req.sid])
-//          log.Println(sessions)
         }
+//          log.Println(sessions)
     }
 
     w.WriteHeader(http.StatusOK)
@@ -144,4 +132,24 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // datetime will be sent regardless
     resp.Set("datetime", nasEncode(time.Now().Format("20060102150405")))
     w.Write([]byte(resp.Encode()))
+}
+
+func (a AuthPostRequest) validate() error {
+
+    // remove this later and read from a list of trusted ids
+    if a.id == "5BCD9D40000315B8" {
+        return nil
+    }
+
+    if a.id[9:] == "BF112233" {
+        return errors.New("emulator (id)") //emulator
+    }
+    if a.mac == "0009BF112233" {
+        return errors.New("emulator (mac)") //emulator
+    }
+    if age(a.birthday) < 13 {
+        return errors.New("user under 13") //toddler
+    }
+
+    return nil
 }

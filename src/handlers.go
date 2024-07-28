@@ -24,15 +24,14 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
 
-    id := vars["id"]
-    idn, err := strconv.Atoi(id)
+    idn, err := strconv.Atoi(vars["id"])
     if err != nil {
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     ext := vars["ext"]
 
-    path := "/flipnotes/" + id
+    path := fmt.Sprintf("/ds/%s/movie/%d", vars["reg"], idn)
 
     switch ext {
     case "star":
@@ -45,8 +44,13 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusOK)
         return
 
+    case "delete":
+        deleteFlipnote(idn)
+        w.WriteHeader(http.StatusOK)
+        return
+
     case "ppm":
-        data, err := os.ReadFile(configuration.HatenaDir + "/hatena_storage" + path + ".ppm")
+        data, err := os.ReadFile(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", configuration.HatenaDir, idn))
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
@@ -58,12 +62,13 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        fi, err := os.Stat(configuration.HatenaDir + "/hatena_storage" + path + ".ppm")
+        fi, err := os.Stat(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", configuration.HatenaDir, idn))
+
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
         }
-        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %s<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", id, fi.Size(), fi.ModTime())))
+        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", configuration.ServerUrl+path+".delete", idn, fi.Size(), fi.ModTime())))
         return
 
     case "info":
@@ -110,7 +115,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     base.Entries = append(base.Entries, MenuEntry{
         Type: 2, // category
         Data: []string{
-            fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1",configuration.ServerUrl, pageType),
+            fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", configuration.ServerUrl, pageType),
             q(prettyPageTypes[pageType]),
             "1",
         },
@@ -139,7 +144,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         base.Entries = append(base.Entries, MenuEntry{
             Type: 4,
             Data: []string{
-                fmt.Sprintf(configuration.ServerUrl + "/flipnotes/%d.ppm", f.id),
+                fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", configuration.ServerUrl, f.id),
                 "3",
                 "",
                 fmt.Sprint(f.stars["yellow"]),
@@ -164,7 +169,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         })
     }
 
-    data := base.Pack()
+    data := base.Pack(mux.Vars(r)["reg"])
     //fmt.Println(string(data))
     w.Write(data)
 }
@@ -273,5 +278,34 @@ func retErrorHandler(code int) http.HandlerFunc {
         w.WriteHeader(code)
     }
 
-    return http.HandlerFunc(fn)
+    return fn
+}
+
+func misc(w http.ResponseWriter, r *http.Request) {
+    switch r.URL.Path {
+    case "/ds/imagetest.htm":
+        w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"big ol test\"></head><body><img src=\"http://flipnote.hatena.com/images/ds/demo2.npf\" width=\"50\" height=\"50\" align=\"left\"><p>test</p></body></html>"))
+    case "/ds/postreplytest.htm":
+        w.Write([]byte("<html><head><meta name=\"replybutton\" content=\"http://flipnote.hatena.com/ds/v2-us/movie/1.reply\"></head><body><p>reply test</p></body></html>"))
+    }
+
+    return
+}
+
+func static(w http.ResponseWriter, r *http.Request) {
+    file, err := os.ReadFile(configuration.HatenaDir + "/static" + r.URL.Path)
+    if  err != nil {
+        w.WriteHeader(http.StatusNotFound)
+        return
+    }
+
+    w.Write(file)
+    return
+}
+
+func logh(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)
+    fmt.Println(string(body))
+    w.WriteHeader(http.StatusOK)
+    return
 }
