@@ -99,6 +99,8 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
         case "/ac":
 
             action := nasRequest.Get("action")
+            bssid := nasRequest.Get("bssid")
+            debuglog.Println(bssid)
             switch action {
 
                 // known action values are login, acctcreate and svcloc

@@ -128,14 +128,17 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote)
 
     // related to fetching flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete|star)}").Methods("GET", "POST").HandlerFunc(serveFlipnotes)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(movieHandler)
+    // stars
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(starMovieHandler)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(starMovieHandler)
 
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
 
     h.Path("/ds/imagetest.htm").HandlerFunc(misc)
     h.Path("/ds/postreplytest.htm").HandlerFunc(misc)
-    h.Path("/ds/v2-us/movie/1.reply").Methods("POST").HandlerFunc(logh)
+    h.Path("/ds/test.reply").Methods("POST").HandlerFunc(misc)
 
     h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))

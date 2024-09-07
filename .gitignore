@@ -1,7 +1,6 @@
 # you should create these
 # dirs yourself
 hatena_storage/
-crt/
 
 src/ugoserver
 tools/ntft/ntft
@@ -15,7 +14,5 @@ tools/npf/*.npf
 go.sum
 tools/ntft/go.sum
 tools/npf/go.sum
-
-private/
 
 static/images/ds/

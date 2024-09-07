@@ -20,7 +20,7 @@ import (
 
 
 // Not my finest code up there so we're doing this a better way
-func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
+func movieHandler(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
 
@@ -34,11 +34,6 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
     path := fmt.Sprintf("/ds/%s/movie/%d", vars["reg"], idn)
 
     switch ext {
-    case "star":
-        //todo
-        w.WriteHeader(http.StatusOK)
-        return
-
     case "dl":
         updateViewDlCount(idn, ext)
         w.WriteHeader(http.StatusOK)
@@ -68,7 +63,9 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusNotFound)
             return
         }
-        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br><span class=\"star0\">0</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star", configuration.ServerUrl+path+".delete", idn, fi.Size(), fi.ModTime())))
+        flip := getFlipnoteById(idn)
+
+        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow<span class=\"star0\">%d</span><br>green<span class=\"star1\">%d</span><br>red<span class=\"star2\">%d</span><br>blue<span class=\"star3\">%d</span><br>purple<span class=\"star4\">%d</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star",configuration.ServerUrl+path+".star/green,99",configuration.ServerUrl+path+".star/red,99",configuration.ServerUrl+path+".star/blue,99",configuration.ServerUrl+path+".star/purple,99", configuration.ServerUrl+path+".delete", flip.stars["yellow"], flip.stars["green"], flip.stars["red"], flip.stars["blue"], flip.stars["purple"], idn, fi.Size(), fi.ModTime())))
         return
 
     case "info":
@@ -81,6 +78,33 @@ func serveFlipnotes(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+// add stars to flipnote
+func starMovieHandler(w http.ResponseWriter, r *http.Request) {
+    vars := mux.Vars(r)
+    id, err := strconv.Atoi(vars["id"])
+    if err != nil {
+        errorlog.Printf("bad id when adding star: %v", err)
+    }
+    count, err := strconv.Atoi(r.Header.Get("X-Hatena-Star-Count"))
+    if err != nil {
+        errorlog.Printf("bad star count: %v", err)
+    }
+    color, ok := vars["color"]
+    if !ok {
+        color = "yellow"
+    }
+    
+    sess, ok := sessions[r.Header.Get("X-Dsi-Sid")]
+    if !ok {
+        w.WriteHeader(http.StatusForbidden)
+        return
+    }
+
+    updateStarCount(id, color, count)
+
+    //TODO: add to user's starred flipnotes
+    updateUserStarredMovies(id, sess.fsid)
+}
 
 // Handler for building ugomenus for the front page
 // recent, hot, most liked, etc..
@@ -241,6 +265,12 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
     debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
+    if checkFlipnoteExists(afn) {
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE("duplicate flipnote"))
+        return
+    }
+
     if err := db.QueryRow("INSERT INTO flipnotes (author_id, author_name, parent_author_id, parent_author_name, author_filename, lock) VALUES ($1, $2, $3, $4, $5, $6) RETURNING (id)", aid, an, paid, pan, afn, l).Scan(&id); err != nil {
         errorlog.Printf("failed to update database: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -286,7 +316,10 @@ func misc(w http.ResponseWriter, r *http.Request) {
     case "/ds/imagetest.htm":
         w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"big ol test\"></head><body><img src=\"http://flipnote.hatena.com/images/ds/demo2.npf\" width=\"50\" height=\"50\" align=\"left\"><p>test</p></body></html>"))
     case "/ds/postreplytest.htm":
-        w.Write([]byte("<html><head><meta name=\"replybutton\" content=\"http://flipnote.hatena.com/ds/v2-us/movie/1.reply\"></head><body><p>reply test</p></body></html>"))
+        w.Write([]byte("<html><head><meta name=\"replybutton\" content=\"http://flipnote.hatena.com/ds/test.reply\"></head><body><p>reply test</p></body></html>"))
+    case "/ds/test.reply":
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE("baka"))
     }
 
     return
@@ -300,12 +333,5 @@ func static(w http.ResponseWriter, r *http.Request) {
     }
 
     w.Write(file)
-    return
-}
-
-func logh(w http.ResponseWriter, r *http.Request) {
-    body, _ := io.ReadAll(r.Body)
-    fmt.Println(string(body))
-    w.WriteHeader(http.StatusOK)
     return
 }

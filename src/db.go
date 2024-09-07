@@ -53,6 +53,15 @@ func deleteFlipnote(id int) {
     }
 }
 
+func updateStarCount(id int, color string, n int) {
+    if _, err := db.Exec(fmt.Sprintf("UPDATE flipnotes SET %s_stars = %s_stars + %d WHERE id = $1", color, color, n), id); err != nil {
+        errorlog.Printf("%v", err)
+    }
+}
+
+func updateUserStarredMovies(id int, fsid string) {
+}
+
 func getFrontFlipnotes(ptype string, p int) ([]flipnote, int) {
     var orderby string
     var total int
@@ -93,4 +102,20 @@ func getFlipnoteById(id int) flipnote {
     }
 
     return queryDbFlipnotes(stmt, id)[0]
+}
+
+func checkFlipnoteExists(fn string) bool {
+    var n int
+
+    err := db.QueryRow("SELECT count(1) FROM flipnotes WHERE author_filename = $1", fn).Scan(&n)
+    if err != nil {
+        errorlog.Printf("could not check if flipnote %v exists: %v", fn, err)
+        return false
+    }
+
+    if n != 0 {
+        return true
+    }
+
+    return false
 }

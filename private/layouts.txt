@@ -1,0 +1,3 @@
+index.ugo 0
+inbox.ugo 2 1
+channels.ugo 3 4, or have it named channels.ugo
