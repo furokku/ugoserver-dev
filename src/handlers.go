@@ -281,7 +281,12 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
     fp, err := os.OpenFile(configuration.HatenaDir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
-        // store by id to not allow filename clashes
+        // >> store by id to not allow filename clashes
+        // this is kinda stupid because filenames allow to identify
+        // whether a flipnote has already been uploaded. However I think
+        // an id-based system is better for querying flipnotes vs
+        // very long, hard to remember filenames. This isn't
+        // 2008 after all
         errorlog.Printf("failed to open path to ppm: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return

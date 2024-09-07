@@ -40,7 +40,7 @@ func (ju JsonUgo) Parse() Ugomenu {
 
     for _, embed := range ju.Embed {
         if bytes, err := os.ReadFile(embed); err != nil {
-            errorlog.Printf("%v", err)
+            errorlog.Fatalf("%v", err)
         } else {
             u.Embed = append(u.Embed, bytes)
         }

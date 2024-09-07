@@ -1,0 +1,13 @@
+{
+    "listen": "0.0.0.0",
+    "serverUrl": "http://flipnote.hatena.com",
+    "frontendOn": true,
+
+    "hatenaDir": "/home/furokku/work/ugoserver-dev",
+
+    "dbHost": "localhost",
+    "dbPort": 5432,
+    "dbUser": "furokku",
+    "dbPass": "foobar",
+    "dbName": "ugo"
+}
