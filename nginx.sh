@@ -1,1 +1,1 @@
-sudo nginx -c /srv/hatena/nginx.conf
+sudo nginx -c /home/furokku/work/ugoserver-dev/nginx.conf

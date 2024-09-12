@@ -27,6 +27,9 @@ func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote) {
         var l, del bool
         var u time.Time
 
+        // may remove parent author name/id/filename,
+        // as they are basically never queried and can be pulled
+        // from file if needed.
         rows.Scan(&id, &aid, &an, &paid, &pan, &afn, &u, &v, &dl, &ys, &gs, &rs, &bs, &ps, &l, &del)
         resp = append(resp, flipnote{id:id, author_id:aid, author_name:an, parent_author_id:paid, parent_author_name:pan, author_filename:afn, uploaded_at:u, lock:l, views:v, downloads:dl, stars:map[string]int{"yellow":ys,"green":gs,"red":rs,"blue":bs,"purple":ps}, deleted:del})
     }

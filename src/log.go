@@ -4,6 +4,7 @@ import (
     "log"
     "os"
     "net/http"
+    "slices"
 )
 
 var (
@@ -47,6 +48,10 @@ func (rw *rwWrapper) WriteHeader(code int) {
 
 func loggerMiddleware(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
+        // ignore bots and etc.
+        if !slices.Contains(configuration.Hosts, r.Host) {
+            return
+        }
         //log request
         reqlog.Printf("%v %v %v%v // %v", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.RequestURI, r.Header)
 

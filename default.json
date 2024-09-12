@@ -9,5 +9,13 @@
     "dbPort": 5432,
     "dbUser": "furokku",
     "dbPass": "foobar",
-    "dbName": "ugo"
+    "dbName": "ugo",
+
+    "hosts": [
+        "flipnote.hatena.com",
+        "ugomemo.hatena.ne.jp",
+        "nas.nintendowifi.net",
+        "localhost:9000",
+        "127.0.0.1:9000"
+    ]
 }

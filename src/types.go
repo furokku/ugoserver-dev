@@ -32,6 +32,7 @@ type (
         DbUser    string `json:"dbUser"`
         DbPass    string `json:"dbPass"`
         DbName    string `json:"dbName"`
+        Hosts     []string `json:"hosts"`
     }
 
     session struct {
@@ -91,4 +92,8 @@ type (
         } `json:"items"`
         Embed []string `json:"embed"`
     }
+)
+
+var (
+    Hosts []string = []string{"flipnote.hatena.com", "ugomemo.hatena.ne.jp", "nas.nintendowifi.net", "localhost:9000", "127.0.0.1:9000"}
 )
