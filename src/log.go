@@ -50,6 +50,7 @@ func loggerMiddleware(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
         // ignore bots and etc.
         if !slices.Contains(configuration.Hosts, r.Host) {
+            w.Write([]byte("you may not access this resource in this way"))
             return
         }
         //log request
