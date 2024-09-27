@@ -2,6 +2,7 @@
 # dirs yourself
 hatena_storage/
 private/raw/
+config.json
 
 src/ugoserver
 tools/ntft/ntft

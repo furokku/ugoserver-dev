@@ -40,7 +40,6 @@ func main() {
     }
 
     json.Unmarshal(cbytes, &configuration)
-
     if err != nil {
         errorlog.Fatalf("failed to load config file: %v", err)
     }
@@ -55,6 +54,9 @@ func main() {
         errorlog.Printf("%v", err)
     }
     for _, ugo := range ugos {
+        if ugo.IsDir() { // ignore dirs in /ugo/
+            continue
+        }
         name := strings.Split(ugo.Name(), ".")[0]
         bytes, err := os.ReadFile(configuration.HatenaDir + "/ugo/" + ugo.Name())
         if err != nil {
@@ -81,24 +83,26 @@ func main() {
     } else if err := db.Ping(); err != nil {
         errorlog.Fatalf("failed to reach database: %v", err)
     }
-    debuglog.Printf("connected to %v @ %v:%v as %v", configuration.DbName, configuration.DbHost, configuration.DbPort, configuration.DbUser)
+    debuglog.Printf("connected to database %v @ %v:%v as %v", configuration.DbName, configuration.DbHost, configuration.DbPort, configuration.DbUser)
 
     defer db.Close()
+
+    // start unix socket for ipc
+    sf := "/tmp/ugoserver.sock"
+    os.RemoveAll(sf)
+    ipcS := NewIpcListener(sf)
+    debuglog.Printf("started unix socket listener")
+
+    defer ipcS.Stop()
+
 
     // start a thread to remove old, expired sessions
     // the time for a session to expire is 2 hours
     // may increase later if needed
     go pruneSids()
 
-    // start the hatena auth/general http server
+    // hatena auth/general http server
     //
-    // ~~in future this may run on the main goroutine as
-    // nas is not explicitly required thanks to wiimmfi
-    // and such~~
-    // will implement signal handling later so this should
-    // still be a separate thread
-    infolog.Println("starting server...")
-
     // gorilla/mux allows accepting requests for
     // a range of urls, then filtering them as needed
     h := mux.NewRouter() // hatena
@@ -133,8 +137,8 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(starMovieHandler)
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(starMovieHandler)
 
-    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
-    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth).Host("nas.nintendowifi.net")
+    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth).Host("nas.nintendowifi.net")
 
     h.Path("/ds/imagetest.htm").HandlerFunc(misc)
     h.Path("/ds/postreplytest.htm").HandlerFunc(misc)
@@ -152,6 +156,7 @@ func main() {
 
     // start on separate thread
     go func() {
+        infolog.Printf("started http server")
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
             errorlog.Fatalf("server error: %v", err)

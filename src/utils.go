@@ -228,3 +228,32 @@ func age(s string) int {
 
     return int(time.Now().Sub(t).Hours())/8760
 }
+
+func (a AuthPostRequest) validate(ip string) (error, restriction) {
+
+    if whitelistCheckId(a.id) {
+        return nil, restriction{}
+    }
+
+    if b, r := queryIsBanned(a.id); b {
+        return ErrIdBan, r
+    }
+    if b, r := queryIsBanned(ip); b {
+        return ErrIpBan, r
+    }
+
+    if a.mac[5:] != a.id[9:] {
+        return ErrAuthMacIdMismatch, restriction{}
+    }
+    if a.id[9:] == "BF112233" {
+        return ErrAuthEmulatorId, restriction{}
+    }
+    if a.mac == "0009BF112233" {
+        return ErrAuthEmulatorMac, restriction{}
+    }
+    if age(a.birthday) < 13 {
+        return ErrAuthUnderage, restriction{}
+    }
+
+    return nil, restriction{}
+}

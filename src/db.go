@@ -14,7 +14,7 @@ func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote) {
 
     rows, err := stmt.Query(args...)
     if err != nil {
-        errorlog.Printf("failed to access database: %v", err)
+        errorlog.Printf("failed to query database for flipnotes: %v", err)
         return []flipnote{}
     }
 
@@ -121,4 +121,54 @@ func checkFlipnoteExists(fn string) bool {
     }
 
     return false
+}
+
+func whitelistAddId(id string) {
+    if _, err := db.Exec("INSERT INTO auth_whitelist (fsid) VALUES ($1)", id); err != nil {
+        errorlog.Printf("failed to whitelist %v: %v", id, err)
+    }
+}
+
+func whitelistDelId(id string) {
+    if _, err := db.Exec("DELETE FROM auth_whitelist WHERE fsid = $1", id); err != nil {
+        errorlog.Printf("failed to unwhitelist %v: %v", id, err)
+    }
+}
+
+func whitelistCheckId(id string) bool {
+    var i int
+    err := db.QueryRow("SELECT id FROM auth_whitelist WHERE fsid = $1", id).Scan(&i)
+    if err == sql.ErrNoRows {
+        return false
+    } else if err != nil {
+        errorlog.Printf("failed to query whitelist for %v: %v", id, err)
+        return false
+    }
+    return true
+}
+
+func queryIsBanned(ident string) (bool, restriction) {
+    b := restriction{}
+    err := db.QueryRow("SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1", ident).Scan(&b.id, &b.issuer, &b.issued, &b.expires, &b.reason, &b.message, &b.pardon, &b.affected)
+    if err == sql.ErrNoRows {
+        return false, restriction{}
+    } else if err != nil {
+        errorlog.Printf("failed to query ban for %v: %v", ident, err)
+        return false, restriction{}
+    }
+    return true, b
+}
+
+func issueBan(iss string, exp time.Time, ident string, r string, msg string, ce bool) {
+    if ce {
+        if b, _ := queryIsBanned(ident); b {
+            infolog.Printf("%v is already banned, ignoring", ident)
+            return
+        }
+    }
+
+    if _, err := db.Exec("INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)", iss, exp, r, msg, ident); err != nil {
+        errorlog.Printf("failed to issue ban: %v", err)
+    }
+    infolog.Printf("%v banned %v until %v for %v (%v)", iss, ident, exp, r, msg)
 }

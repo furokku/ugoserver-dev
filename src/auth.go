@@ -1,19 +1,18 @@
 package main
 
-
 import (
     "io"
     "net/http"
     "net/url"
-    "errors"
 
     "time"
 )
 
 var nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
 
-
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
+
+    ip := r.Header.Get("X-Real-Ip")
 
     switch r.Method {
 
@@ -48,18 +47,25 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             color:    r.Header.Get("X-Dsi-Color"),
         }
 
-        if err := req.validate(); err != nil {
+        if err, b := req.validate(ip); err != nil {
             // funkster detected
-            //w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            //w.Write(encUTF16LE("eat concrete"))
-            warnlog.Printf("%v did not pass auth validation (because: %v)", r.Header.Get("X-Real-Ip"), err)
-            w.Header()["X-DSi-Unread-Notices"] = []string{"1"}
+            ref := req.sid[:6] + "_" + req.mac[6:]
+            infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)
+            msg := "an error occured. try again later\nreference: " + ref
+
+            if err == ErrIdBan || err == ErrIpBan {
+                msg = "you have been banned until\n" + b.expires.UTC().Format(time.DateTime) + " UTC"  + "\n\nreason: " + b.message + "\n\nreference: " + ref
+            }
+
+            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+            w.Write(encUTF16LE(msg))
+            return
         } else {
             sessions[req.sid] = session{
                 fsid: req.id,
                 username: decReqUsername(req.username),
                 issued: time.Now(),
-                ip: r.Header.Get("X-Real-Ip"),
+                ip: ip,
             }
 
             w.Header()["X-DSi-SID"] = []string{req.sid}
@@ -73,10 +79,11 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
 func nasAuth(w http.ResponseWriter, r *http.Request) {
 
+    ip := r.Header.Get("X-Real-Ip")
     body, _ := io.ReadAll(r.Body)
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
-        errorlog.Printf("bad form from %v at %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        errorlog.Printf("bad nas form from %v: %v", ip, err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
@@ -98,9 +105,17 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
         case "/ac":
 
-            action := nasRequest.Get("action")
             bssid := nasRequest.Get("bssid")
-            debuglog.Println(bssid)
+            // Emulator check
+            // Most users who try to use an emulator won't
+            // change the default AP BSSID, which will give awau
+            // the fact that they're using one
+
+            if bssid == "00f077777777" { // 00:F0:77 mac is unassigned. 100% emulator
+                issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true)
+            }
+
+            action := nasRequest.Get("action")
             switch action {
 
                 // known action values are login, acctcreate and svcloc
@@ -134,24 +149,4 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // datetime will be sent regardless
     resp.Set("datetime", nasEncode(time.Now().Format("20060102150405")))
     w.Write([]byte(resp.Encode()))
-}
-
-func (a AuthPostRequest) validate() error {
-
-    // remove this later and read from a list of trusted ids
-    if a.id == "5BCD9D40000315B8" {
-        return nil
-    }
-
-    if a.id[9:] == "BF112233" {
-        return errors.New("emulator (id)") //emulator
-    }
-    if a.mac == "0009BF112233" {
-        return errors.New("emulator (mac)") //emulator
-    }
-    if age(a.birthday) < 13 {
-        return errors.New("user under 13") //toddler
-    }
-
-    return nil
 }

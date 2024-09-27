@@ -2,6 +2,8 @@ package main
 
 import (
     "time"
+    "net"
+    "sync"
 )
 
 // should be self-explanatory
@@ -57,6 +59,17 @@ type (
         deleted bool
     }
 
+    restriction struct {
+        id int
+        issuer string
+        issued time.Time
+        expires time.Time
+        reason string
+        message string
+        pardon bool
+        affected string
+    }
+
     tmb []byte
 
     Ugomenu struct {
@@ -92,8 +105,10 @@ type (
         } `json:"items"`
         Embed []string `json:"embed"`
     }
-)
 
-var (
-    Hosts []string = []string{"flipnote.hatena.com", "ugomemo.hatena.ne.jp", "nas.nintendowifi.net", "localhost:9000", "127.0.0.1:9000"}
+    ipcListener struct {
+        listener net.Listener
+        quit     chan interface{}
+        wg       sync.WaitGroup
+    }
 )
