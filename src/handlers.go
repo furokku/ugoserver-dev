@@ -340,3 +340,18 @@ func static(w http.ResponseWriter, r *http.Request) {
     w.Write(file)
     return
 }
+
+
+func cmd(r string) string {
+    args := strings.Split(r, " ")
+
+    switch args[0] {
+    case "ban":
+        if len(args) < 5 {
+            return fmt.Sprintf("expected 5 arguments; got %d: %v", len(args), args)
+        }
+        return "big day"
+    default:
+        return "invalid command"
+    }
+}

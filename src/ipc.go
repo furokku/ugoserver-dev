@@ -62,7 +62,7 @@ func ipc(conn net.Conn) {
             return
         }
         req := string(buf[:n])
-        resp := "placeholder" //cmd(req)
+        resp := cmd(req)
         infolog.Printf("cmd: %v", req)
         io.WriteString(conn, resp)
     }

@@ -21,17 +21,13 @@ func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote) {
     defer rows.Close()
 
     for rows.Next() {
-        //mess
-        var id, v, dl, ys, gs, rs, bs, ps int
-        var aid, an, paid, pan, afn string
-        var l, del bool
-        var u time.Time
+        r := flipnote{}
 
         // may remove parent author name/id/filename,
         // as they are basically never queried and can be pulled
         // from file if needed.
-        rows.Scan(&id, &aid, &an, &paid, &pan, &afn, &u, &v, &dl, &ys, &gs, &rs, &bs, &ps, &l, &del)
-        resp = append(resp, flipnote{id:id, author_id:aid, author_name:an, parent_author_id:paid, parent_author_name:pan, author_filename:afn, uploaded_at:u, lock:l, views:v, downloads:dl, stars:map[string]int{"yellow":ys,"green":gs,"red":rs,"blue":bs,"purple":ps}, deleted:del})
+        rows.Scan(&r.id, &r.author_id, &r.author_name, &r.parent_author_id, &r.parent_author_name, &r.author_filename, &r.uploaded_at, &r.views, &r.downloads, &r.stars["yellow"], &r.stars["green"], &r.stars["red"], &r.stars["blue"], &r.stars["purple"], &r.lock, &r.deleted)
+        resp = append(resp, r)
     }
 
     return resp
