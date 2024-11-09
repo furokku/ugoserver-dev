@@ -4,6 +4,9 @@ hatena_storage/
 private/raw/
 config.json
 
+nginx.conf
+dnsmasq.conf
+
 src/ugoserver
 tools/ntft/ntft
 tools/npf/npf

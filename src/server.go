@@ -65,7 +65,7 @@ func main() {
         piss := JsonUgo{}
         json.Unmarshal(bytes, &piss)
 
-        loadedUgos[name] = piss.Parse()
+        loadedUgos[name] = piss.parse()
     }
 
     // prep graceful exit
@@ -90,10 +90,10 @@ func main() {
     // start unix socket for ipc
     sf := "/tmp/ugoserver.sock"
     os.RemoveAll(sf)
-    ipcS := NewIpcListener(sf)
+    ipcS := newIpcListener(sf)
     debuglog.Printf("started unix socket listener")
 
-    defer ipcS.Stop()
+    defer ipcS.stop()
 
 
     // start a thread to remove old, expired sessions
@@ -122,7 +122,7 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(loadedUgos["index"].UgoHandle())
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(loadedUgos["index"].ugoHandle())
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
 
     // return a built ugo file with flipnotes

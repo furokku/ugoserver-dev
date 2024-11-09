@@ -7,6 +7,7 @@ import (
 
 	"fmt"
 	"strings"
+        "os"
 
 	"time"
 )
@@ -39,7 +40,7 @@ func randAsciiString(size int) string {
 
 // nas response uses base64 with * and -
 // in place of = and + due to url reserved chars
-func nasDecode(data string) string {
+func nasDecode(data string) (string, error) {
     decoded, err := base64.StdEncoding.DecodeString(strings.Map(func(r rune) rune {
         switch r {
         case '*':
@@ -53,11 +54,10 @@ func nasDecode(data string) string {
         }
     }, data))
     if err != nil {
-        warnlog.Printf("(nas) decoding base64 string %v failed with error %v", data, err)
-        return ""
+        return "", err
     }
 
-    return string(decoded)
+    return string(decoded), nil
 }
 
 
@@ -210,9 +210,8 @@ func reverse[T comparable](a []T) []T {
 func btoi(b bool) int {
     if b {
         return 1
-    } else {
-        return 0
     }
+    return 0
 }
 
 func q(s string) string {
@@ -231,29 +230,63 @@ func age(s string) int {
 
 func (a AuthPostRequest) validate(ip string) (error, restriction) {
 
-    if whitelistCheckId(a.id) {
-        return nil, restriction{}
+    // empty restriction
+    e := restriction{}
+
+    if ok, _ := whitelistCheckId(a.id); ok {
+        return nil, e
     }
 
-    if b, r := queryIsBanned(a.id); b {
+    if b, r, _ := queryIsBanned(a.id); b {
         return ErrIdBan, r
     }
-    if b, r := queryIsBanned(ip); b {
+    if b, r, _ := queryIsBanned(ip); b {
         return ErrIpBan, r
     }
 
     if a.mac[5:] != a.id[9:] {
-        return ErrAuthMacIdMismatch, restriction{}
+        return ErrAuthMacIdMismatch, e
     }
     if a.id[9:] == "BF112233" {
-        return ErrAuthEmulatorId, restriction{}
+        return ErrAuthEmulatorId, e
     }
     if a.mac == "0009BF112233" {
-        return ErrAuthEmulatorMac, restriction{}
+        return ErrAuthEmulatorMac, e
     }
     if age(a.birthday) < 13 {
-        return ErrAuthUnderage, restriction{}
+        return ErrAuthUnderage, e
     }
 
-    return nil, restriction{}
+    return nil, e
+}
+
+func (f flipnote) TMB() (tmb, error) {
+    buf := make([]byte, 0x6A0)
+    path := fmt.Sprintf(configuration.HatenaDir + "/hatena_storage/flipnotes/%d.ppm", f.id)
+
+    file, err := os.Open(path)
+    if err != nil {
+        errorlog.Printf("failed to open %v: %v", path, err)
+        return nil, err
+    }
+    _, err = file.Read(buf)
+    if err != nil {
+        errorlog.Printf("failed to read %v: %v", path, err)
+        return nil, err
+    }
+
+    return buf, nil
+}
+
+// return whether a flipnote is locked
+// 0 if not, 1 if it is
+//not necessary anymore
+func (t tmb) flipnoteIsLocked() int {
+    l := int( t[0x10] )
+
+    if l != 0 && l != 1 {
+        warnlog.Printf("invalid lock state")
+        return 0
+    }
+    return l
 }

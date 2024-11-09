@@ -5,7 +5,7 @@ import (
     "io"
 )
 
-func NewIpcListener(sf string) *ipcListener {
+func newIpcListener(sf string) *ipcListener {
     s := &ipcListener{
         quit: make(chan interface{}),
     }
@@ -19,7 +19,7 @@ func NewIpcListener(sf string) *ipcListener {
     return s
 }
 
-func (s *ipcListener) Stop() {
+func (s *ipcListener) stop() {
     close(s.quit)
     s.listener.Close()
     s.wg.Wait()

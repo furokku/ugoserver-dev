@@ -12,4 +12,5 @@ var (
     ErrAuthUnknownError = errors.New("unknown error")
     ErrIpBan = errors.New("user is ip banned")
     ErrIdBan = errors.New("user is id banned")
+    ErrAlreadyBanned = errors.New("user is already banned")
 )

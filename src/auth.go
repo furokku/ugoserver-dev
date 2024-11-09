@@ -90,9 +90,16 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
 
     // decode base64 values to plaintext for logging reasons
     // and to check action key
-    for key := range nasRequest {
+    for key, val := range nasRequest {
         // only one value is set per key so this is fine
-        nasRequest[key][0] = nasDecode(nasRequest[key][0])
+        dec, err := nasDecode(val[0])
+        if err != nil {
+            errorlog.Printf("error parsing NAS form key (value) %v (%v): %v", key, val, err)
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+
+        nasRequest[key][0] = dec
     }
 
     // the form itself doesn't really convery much helpful information
@@ -112,7 +119,12 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
             // the fact that they're using one
 
             if bssid == "00f077777777" { // 00:F0:77 mac is unassigned. 100% emulator
-                issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true)
+                err := issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true)
+                if err == ErrAlreadyBanned {
+                    infolog.Printf("%v is already banned")
+                } else if err != nil {
+                    errorlog.Printf("failed to issue ban for %v: %v", ip, err)
+                }
             }
 
             action := nasRequest.Get("action")

@@ -18,7 +18,6 @@ import (
 )
 
 
-
 // Not my finest code up there so we're doing this a better way
 func movieHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -35,12 +34,22 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
 
     switch ext {
     case "dl":
-        updateViewDlCount(idn, ext)
+        err := updateViewDlCount(idn, ext)
+        if err != nil {
+            errorlog.Printf("failed to update %v count: %v", ext, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
         w.WriteHeader(http.StatusOK)
         return
 
     case "delete":
-        deleteFlipnote(idn)
+        err := deleteFlipnote(idn)
+        if err != nil {
+            errorlog.Printf("failed to delete %v: %v", idn, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
         w.WriteHeader(http.StatusOK)
         return
 
@@ -51,7 +60,12 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        updateViewDlCount(idn, ext)
+        err = updateViewDlCount(idn, ext)
+        if err != nil {
+            errorlog.Printf("failed to update %v count: %v", ext, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
         w.Write(data)
 //          log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
         return
@@ -63,7 +77,12 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusNotFound)
             return
         }
-        flip := getFlipnoteById(idn)
+        flip, err := getFlipnoteById(idn)
+        if err != nil {
+            errorlog.Printf("could not get flipnote %v: %v", idn, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
 
         w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow<span class=\"star0\">%d</span><br>green<span class=\"star1\">%d</span><br>red<span class=\"star2\">%d</span><br>blue<span class=\"star3\">%d</span><br>purple<span class=\"star4\">%d</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star",configuration.ServerUrl+path+".star/green,99",configuration.ServerUrl+path+".star/red,99",configuration.ServerUrl+path+".star/blue,99",configuration.ServerUrl+path+".star/purple,99", configuration.ServerUrl+path+".delete", flip.stars["yellow"], flip.stars["green"], flip.stars["red"], flip.stars["blue"], flip.stars["purple"], idn, fi.Size(), fi.ModTime())))
         return
@@ -100,10 +119,18 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    updateStarCount(id, color, count)
+    err = updateStarCount(id, color, count)
+    if err != nil {
+        errorlog.Printf("failed to update star count for %v: %v", id, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
 
     //TODO: add to user's starred flipnotes
-    updateUserStarredMovies(id, sess.fsid)
+    err = updateUserStarredMovies(id, sess.fsid)
+    if err != nil {
+        print("what the fuck")
+    }
 }
 
 // Handler for building ugomenus for the front page
@@ -124,7 +151,12 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         page = 1
     }
 
-    flipnotes, total := getFrontFlipnotes(pageType, page)
+    flipnotes, total, err := getFrontFlipnotes(pageType, page)
+    if err != nil {
+        errorlog.Printf("could not get flipnotes: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
     pagemax := countPages(total)
 
     // Add top screen titles
@@ -158,9 +190,9 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 
     for _, f := range flipnotes {
 //      lock := btoi(f.lock)
-        tempTmb := f.TMB()
-        if tempTmb == nil {
-            warnlog.Printf("tmb is nil")
+        tempTmb, err := f.TMB()
+        if err != nil {
+            errorlog.Printf("nil tmb: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -193,7 +225,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         })
     }
 
-    data := base.Pack(mux.Vars(r)["reg"])
+    data := base.pack(mux.Vars(r)["reg"])
     //fmt.Println(string(data))
     w.Write(data)
 }
@@ -263,11 +295,15 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
                 string(ppmBody[0x7B : 0x88]) + "_" +
                 editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
 
-    debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
+//  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
-    if checkFlipnoteExists(afn) {
+    if ok, err := checkMovieExistsAfn(afn); ok && err == nil {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("duplicate flipnote"))
+        return
+    } else if err != nil {
+        errorlog.Printf("could not check if flipnote %v exists: %v", afn, err)
+        w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
@@ -277,7 +313,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    fmt.Println(id)
+//  fmt.Println(id)
 
     fp, err := os.OpenFile(configuration.HatenaDir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
@@ -292,11 +328,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    defer func() {
-        if err := fp.Close(); err != nil {
-            panic(err)
-        }
-    }()
+    defer fp.Close()
 
     if _, err := fp.Write(ppmBody); err != nil {
         errorlog.Printf("failed to write ppm to file: %v", err)
@@ -304,7 +336,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-
+    infolog.Printf("%v (%v) uploaded flipnote %v", session.username, session.fsid, afn)
     w.WriteHeader(http.StatusOK)
 }
 
