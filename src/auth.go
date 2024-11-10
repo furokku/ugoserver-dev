@@ -121,7 +121,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
             if bssid == "00f077777777" { // 00:F0:77 mac is unassigned. 100% emulator
                 err := issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true)
                 if err == ErrAlreadyBanned {
-                    infolog.Printf("%v is already banned")
+                    infolog.Printf("%v is already banned", ip)
                 } else if err != nil {
                     errorlog.Printf("failed to issue ban for %v: %v", ip, err)
                 }
