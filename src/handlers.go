@@ -137,55 +137,36 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
 // recent, hot, most liked, etc..
 func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     
-    base := loadedUgos["gridbase"]
+    base := ugoNew()
+    base.setLayout(2)
 
-    pageType := r.URL.Query().Get("mode")
-    pageQ := r.URL.Query().Get("page")
+    pt := r.URL.Query().Get("mode")
+    pq := r.URL.Query().Get("page")
 
-    page, err := strconv.Atoi(pageQ)
-    if pageQ == "" {
+    p, err := strconv.Atoi(pq)
+    if pq == "" {
         // do NOT print error message if the query is empty
-        page = 1
+        p = 1
     } else if err != nil {
         infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
-        page = 1
+        w.WriteHeader(http.StatusBadRequest)
+        return
     }
 
-    flipnotes, total, err := getFrontFlipnotes(pageType, page)
+    flipnotes, total, err := getFrontFlipnotes(pt, p)
     if err != nil {
         errorlog.Printf("could not get flipnotes: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
-    pagemax := countPages(total)
+    pm := countPages(total)
 
-    // Add top screen titles
-    base.Entries = append(base.Entries, MenuEntry{
-        Type: 1,
-        Data: []string{
-            "0",
-            q("Front page"),
-            q(fmt.Sprintf("Page %d / %d", page, pagemax)),
-        },
-    })
-    base.Entries = append(base.Entries, MenuEntry{
-        Type: 2, // category
-        Data: []string{
-            fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", configuration.ServerUrl, pageType),
-            q(prettyPageTypes[pageType]),
-            "1",
-        },
-    })
+    // meta
+    base.setTopScreenText("Feed", fmt.Sprintf("Page %d / %d", p, pm), "","","")
+    base.addDropdown(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", configuration.ServerUrl, pt), prettyPageTypes[pt], true)
 
-    if page > 1 {
-        base.Entries = append(base.Entries, MenuEntry{
-            Type: 4,
-            Data: []string{
-                fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pageType, page-1),
-                "100",
-                q("Previous"),
-            },
-        })
+    if p > 1 {
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=&d", configuration.ServerUrl, pt, p-1), 100, "Previous")
     }
 
     for _, f := range flipnotes {
@@ -196,37 +177,17 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", configuration.ServerUrl, f.id), 3, "", f.stars["yellow"], 765, 573, 0)
 
-        base.Entries = append(base.Entries, MenuEntry{
-            Type: 4,
-            Data: []string{
-                fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", configuration.ServerUrl, f.id),
-                "3",
-                "",
-                fmt.Sprint(f.stars["yellow"]),
-                "765", // ?? what does this do
-                "573", // ??
-                "0", // ??
-            },
-        })
-
-        base.Embed = append(base.Embed, tempTmb)
+        base.EmbedBytes = append(base.EmbedBytes, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
-    if pagemax > page {
-        base.Entries = append(base.Entries, MenuEntry{
-            Type: 4,
-            Data: []string{
-                fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pageType, page+1),
-                "100",
-                q("Next"),
-            },
-        })
+    if pm > p {
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pt, p+1), 100, "Next")
     }
 
     data := base.pack(mux.Vars(r)["reg"])
-    //fmt.Println(string(data))
     w.Write(data)
 }
 

@@ -72,7 +72,8 @@ type (
 
     tmb []byte
 
-    Ugomenu struct {
+    UgomenuDepr struct {
+        Layout []uint
         Entries []MenuEntry
         Embed [][]byte
     }
@@ -82,7 +83,7 @@ type (
         Data []string
     }
 
-    JsonUgo struct {
+    Ugomenu struct {
         Layout []int `json:"layout"`
         TopScreenContents struct {
             URL            string `json:"url,omitempty"`
@@ -92,18 +93,21 @@ type (
             Uppersubtop    string `json:"uppersubtop,omitempty"`
             Uppersubbottom string `json:"uppersubbottom,omitempty"`
         } `json:"top"`
-        Items []struct {
-            Type     string `json:"type"`
-            URL      string `json:"url"`
-            Label    string `json:"label"`
-            Selected bool `json:"selected,omitempty"`
-            Icon     int `json:"icon,omitempty"`
-            Count    int `json:"count,omitempty"`
-            Lock     int `json:"lock,omitempty"`
-            Unknown1 int `json:"unknown1,omitempty"`
-            Unknown2 int `json:"unknown2,omitempty"`
-        } `json:"items"`
+        Items []MenuItem `json:"items"`
         Embed []string `json:"embed"`
+        EmbedBytes [][]byte
+    }
+
+    MenuItem struct {
+        Type     string `json:"type"`
+        URL      string `json:"url"`
+        Label    string `json:"label"`
+        Selected bool `json:"selected,omitempty"`
+        Icon     int `json:"icon,omitempty"`
+        Count    int `json:"count,omitempty"`
+        Lock     int `json:"lock,omitempty"`
+        Unknown1 int `json:"unknown1,omitempty"`
+        Unknown2 int `json:"unknown2,omitempty"`
     }
 
     ipcListener struct {

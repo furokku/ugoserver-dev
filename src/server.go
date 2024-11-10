@@ -62,10 +62,10 @@ func main() {
         if err != nil {
             errorlog.Printf("%v", err)
         }
-        piss := JsonUgo{}
-        json.Unmarshal(bytes, &piss)
+        tu := Ugomenu{}
+        json.Unmarshal(bytes, &tu)
 
-        loadedUgos[name] = piss.parse()
+        loadedUgos[name] = tu
     }
 
     // prep graceful exit

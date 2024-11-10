@@ -21,7 +21,7 @@ func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote, error) {
     defer rows.Close()
 
     for rows.Next() {
-        r := flipnote{}
+        r := flipnote{stars:make(map[string]int)}
 
         // may remove parent author name/id/filename,
         // as they are basically never queried and can be pulled
