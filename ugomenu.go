@@ -1,12 +1,13 @@
 package main
 
 import (
-    "encoding/binary"
-    "fmt"
-    "os"
-    "net/http"
-    "github.com/gorilla/mux"
-    "strings"
+	"encoding/binary"
+	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 const magic string = "UGAR"
@@ -158,62 +159,9 @@ func (u Ugomenu) ugoHandle() http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
         w.Write(u.pack(mux.Vars(r)["reg"]))
-        return
     }
 
     return fn
-}
-
-// compile ugomenu to array of bytes
-func (u UgomenuDepr) packDepr(r string) []byte {
-
-    var header, menus, embedded []byte
-    sections := 1 // there is always at least one section
-    emb := false
-
-    // layout
-    menus = append(menus, 0x31)
-    for i := range u.Layout {
-        menus = append(menus, 0x09)
-        menus = append(menus, fmt.Sprint(i)...)
-    }
-
-    
-    // buttons and stuff
-    for _, item := range u.Entries {
-        menus = append(menus, 0x0A)
-        menus = append(menus, fmt.Sprint(item.Type)...)
-
-        for _, data := range item.Data {
-            menus = append(menus, 0x09)
-            menus = append(menus, strings.Replace(data, "v2-xx", r, 1)...)
-        }
-    }
-
-    menus = padBytes(menus)
-
-    // embedded content can be omitted, but is required
-    // for things like custom icons or layout 2
-    //
-    // Should be ntft or tmb
-    if len(u.Embed) > 0 {
-        for _, embed := range u.Embed {
-            embedded = append(embedded, embed...)
-        }
-
-        embedded = padBytes(embedded)
-
-        emb = true
-        sections = 2
-    }
-
-    // Has to be little endian byte order
-    header = []byte(magic)
-    header = binary.LittleEndian.AppendUint32(header, uint32(sections))
-    header = binary.LittleEndian.AppendUint32(header, uint32(len(menus)))
-    if emb { header = binary.LittleEndian.AppendUint32(header, uint32(len(embedded))) }
-    
-    return append(header, append(menus, embedded...)...)
 }
 
 // 4 byte padding for ugomenus

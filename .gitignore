@@ -7,15 +7,5 @@ config.json
 nginx.conf
 dnsmasq.conf
 
-src/ugoserver
-tools/ntft/ntft
-tools/npf/npf
-
-tools/ntft/*.png
-tools/ntft/*.ntft
-tools/npf/*.png
-tools/npf/*.npf
-
+bin/
 go.sum
-tools/ntft/go.sum
-tools/npf/go.sum

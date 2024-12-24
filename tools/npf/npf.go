@@ -1,15 +1,15 @@
-package main
+package npf
 
 import (
-    "image"
-    "image/color"
-    _ "image/png"
+	"image"
+	"image/color"
+	_ "image/png"
 
-    "os"
-    "fmt"
-    "slices"
+	"fmt"
+	"os"
+	"slices"
 
-    "encoding/binary"
+	"encoding/binary"
 )
 
 const magic string = "UGAR"
@@ -17,7 +17,7 @@ var colors = make(map[color.Color]int, 15)
 var im []int
 var out []byte
 
-func main() {
+func nmain() {
     fi, err := os.Open(os.Args[1])
     if err != nil {
         panic(err)

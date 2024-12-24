@@ -1,11 +1,11 @@
 package main
 
 import (
-    "io"
-    "net/http"
-    "net/url"
+	"io"
+	"net/http"
+	"net/url"
 
-    "time"
+	"time"
 )
 
 var nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
@@ -35,6 +35,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         req := AuthPostRequest{
             mac:      r.Header.Get("X-Dsi-Mac"), //console mac
             id:       r.Header.Get("X-Dsi-Id"), //fsid
+            ip:       ip,
             auth:     r.Header.Get("X-Dsi-Auth-Response"),
             sid:      r.Header.Get("X-Dsi-Sid"),
             ver:      r.Header.Get("X-Ugomemo-Version"),
@@ -47,7 +48,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             color:    r.Header.Get("X-Dsi-Color"),
         }
 
-        if err, b := req.validate(ip); err != nil {
+        if err, b := req.validate(); err != nil {
             // funkster detected
             ref := req.sid[:6] + "_" + req.mac[6:]
             infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)

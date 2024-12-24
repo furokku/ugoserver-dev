@@ -1,7 +1,7 @@
 package main
 
 import (
-    "errors"
+	"errors"
 )
 
 var (
@@ -13,4 +13,5 @@ var (
     ErrIpBan = errors.New("user is ip banned")
     ErrIdBan = errors.New("user is id banned")
     ErrAlreadyBanned = errors.New("user is already banned")
+    ErrInvalidDbType = errors.New("invalid db type in config")
 )

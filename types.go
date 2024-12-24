@@ -1,9 +1,9 @@
 package main
 
 import (
-    "time"
-    "net"
-    "sync"
+	"net"
+	"sync"
+	"time"
 )
 
 // should be self-explanatory
@@ -11,6 +11,7 @@ type (
     AuthPostRequest struct {
         mac      string
         id       string
+        ip       string
         auth     string
         sid      string
         ver      string
@@ -25,15 +26,18 @@ type (
 
     Configuration struct {
         Listen    string `json:"listen"`
-        ServerUrl string `json:"serverUrl"`
+        URL string `json:"url"`
+        Dir string `json:"dir"`
 
-        HatenaDir string `json:"hatenaDir"`
-
-        DbHost    string `json:"dbHost"`
-        DbPort    int    `json:"dbPort"`
-        DbUser    string `json:"dbUser"`
-        DbPass    string `json:"dbPass"`
-        DbName    string `json:"dbName"`
+        DB struct {
+            Type    string `json:"type"`
+            File    string `json:"file"`
+            Host    string `json:"host"`
+            Port    int    `json:"port"`
+            User    string `json:"user"`
+            Pass    string `json:"pass"`
+            Name    string `json:"name"`
+        } `json:"db"`
         Hosts     []string `json:"hosts"`
     }
 

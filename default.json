@@ -1,16 +1,26 @@
 {
     "listen": "0.0.0.0",
-    "serverUrl": "http://flipnote.hatena.com",
-    "frontendOn": true,
 
-    "hatenaDir": "/srv/hatena",
+    "_comment_a": "url that will be used for links in ugomenus. set this correctly!",
+    "url": "http://flipnote.hatena.com",
 
-    "dbHost": "localhost",
-    "dbPort": 5432,
-    "dbUser": "furokku",
-    "dbPass": "foobar",
-    "dbName": "ugo",
+    "_comment_b": "where all of the magic happens",
+    "dir": "/srv/hatena",
+    
+    "db": {
+        "type": "sqlite3",
+        "_comment_c": "for sqlite",
+        "file": "ugo.sqlite",
 
+        "_comment_d": "for postgres",
+        "host": "localhost",
+        "port": 5432,
+        "user": "furokku",
+        "pass": "foobar",
+        "name": "ugo"
+    },
+
+    "_comment_e": "hosts that the server will accept requests from. Used to weed out bots",
     "hosts": [
         "flipnote.hatena.com",
         "ugomemo.hatena.ne.jp",

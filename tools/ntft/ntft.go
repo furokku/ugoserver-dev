@@ -1,17 +1,17 @@
-package main
+package ntft
 
 import (
-    "os"
-    "fmt"
-    "image"
-    _ "image/png"
-    "encoding/binary"
+	"encoding/binary"
+	"fmt"
+	"image"
+	_ "image/png"
+	"os"
 )
 
 var next uint16
 var bytes []byte
 
-func main() {
+func nmain() {
 
     fi, err := os.Open(os.Args[1])
     if err != nil {

@@ -1,11 +1,33 @@
 package main
 
 import (
-    "time"
-    "fmt"
-    "database/sql"
+	"database/sql"
+	"fmt"
+	"time"
 )
 
+func connect() (*sql.DB, error) {
+    var cs string
+
+    switch cnf.DB.Type {
+    case "sqlite3":
+        cs = fmt.Sprintf("file:%s/%s?cache=shared&mode=rwc", cnf.Dir, cnf.DB.File)
+    case "postgres":
+        cs = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
+    default:
+        return nil, ErrInvalidDbType
+    }
+    
+    db, err := sql.Open(cnf.DB.Type, cs)
+    if err != nil {
+        return nil, err
+    }
+    if err := db.Ping(); err != nil {
+        return nil, err
+    }
+    
+    return db, nil
+}
 
 // pass a statement prepared with db.Prepare and return flipnotes
 func queryDbFlipnotes(stmt *sql.Stmt, args ...any) ([]flipnote, error) {

@@ -1,25 +1,24 @@
 package main
 
 import (
-    _ "github.com/lib/pq"
-    "database/sql"
+	"database/sql"
 
-    "fmt"
-    "encoding/json"
-    "strings"
+	"encoding/json"
+	"strings"
 
-    "github.com/gorilla/mux"
-    "net/http"
+	"net/http"
 
-    "context"
-    "os"
-    "os/signal"
-    "time"
+	"github.com/gorilla/mux"
+
+	"context"
+	"os"
+	"os/signal"
+	"time"
 )
 
 var (
     db *sql.DB
-    configuration = Configuration{}
+    cnf = Configuration{}
     sessions = make(map[string]session)
     prettyPageTypes = map[string]string{"recent":"Recent"}
     loadedUgos = make(map[string]Ugomenu)
@@ -29,27 +28,27 @@ func main() {
 
     // Flags are kinda useless because this will always
     // be used with a configuration file
-    configFile := "default.json"
+    cf := "default.json"
     if len(os.Args) > 1 {
-        configFile = os.Args[1]
+        cf = os.Args[1]
     }
 
-    cbytes, err := os.ReadFile(configFile)
+    cbytes, err := os.ReadFile(cf)
     if err != nil {
         errorlog.Fatalf("failed to open config file: %v", err)
     }
 
-    json.Unmarshal(cbytes, &configuration)
+    json.Unmarshal(cbytes, &cnf)
     if err != nil {
         errorlog.Fatalf("failed to load config file: %v", err)
     }
-    debuglog.Printf("loaded config %v", configuration)
+    debuglog.Printf("loaded config %v", cnf)
 
     // temporary workaround until i come up with a better format
     // for static/template ugos that don't need to change
 
     // done
-    ugos, err := os.ReadDir(configuration.HatenaDir + "/ugo")
+    ugos, err := os.ReadDir(cnf.Dir + "/ugo")
     if err != nil {
         errorlog.Printf("%v", err)
     }
@@ -58,32 +57,31 @@ func main() {
             continue
         }
         name := strings.Split(ugo.Name(), ".")[0]
-        bytes, err := os.ReadFile(configuration.HatenaDir + "/ugo/" + ugo.Name())
+        bytes, err := os.ReadFile(cnf.Dir + "/ugo/" + ugo.Name())
         if err != nil {
             errorlog.Printf("%v", err)
         }
         tu := Ugomenu{}
-        json.Unmarshal(bytes, &tu)
+        err = json.Unmarshal(bytes, &tu)
+        if err != nil {
+            errorlog.Printf("error parsing %s: %v", name, err)
+        }
 
         loadedUgos[name] = tu
     }
 
     // prep graceful exit
     sigs := make(chan os.Signal, 1)
-    signal.Notify(sigs, os.Kill, os.Interrupt)
-
-    dbCfg := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-                         configuration.DbHost, configuration.DbPort, configuration.DbUser, configuration.DbPass, configuration.DbName)
+    signal.Notify(sigs, os.Interrupt)
 
 
-    // connect to database
-    db, err = sql.Open("postgres", dbCfg)
+
+    // connect to db
+    db, err := connect()
     if err != nil {
-        errorlog.Fatalf("failed to open database: %v", err)
-    } else if err := db.Ping(); err != nil {
-        errorlog.Fatalf("failed to reach database: %v", err)
+        errorlog.Fatalf("could not connect/reach db: %v", err)
     }
-    debuglog.Printf("connected to database %v @ %v:%v as %v", configuration.DbName, configuration.DbHost, configuration.DbPort, configuration.DbUser)
+    infolog.Printf("connected to database")
 
     defer db.Close()
 
@@ -123,7 +121,7 @@ func main() {
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(loadedUgos["index"].ugoHandle())
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented);return})
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented)})
 
     // return a built ugo file with flipnotes
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(serveFrontPage)
@@ -152,7 +150,7 @@ func main() {
     h.PathPrefix("/images").HandlerFunc(static)
 
     // define servers
-    hatena := &http.Server{Addr: configuration.Listen + ":9000", Handler: h}
+    hatena := &http.Server{Addr: cnf.Listen + ":9000", Handler: h}
 
     // start on separate thread
     go func() {

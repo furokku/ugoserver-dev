@@ -1,10 +1,10 @@
 package main
 
 import (
-    "log"
-    "os"
-    "net/http"
-    "slices"
+	"log"
+	"net/http"
+	"os"
+	"slices"
 )
 
 var (
@@ -42,14 +42,12 @@ func (rw *rwWrapper) WriteHeader(code int) {
     rw.status = code
     rw.ResponseWriter.WriteHeader(code)
     rw.done = true
-
-    return
 }
 
 func loggerMiddleware(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
         // ignore bots and etc.
-        if !slices.Contains(configuration.Hosts, r.Host) {
+        if !slices.Contains(cnf.Hosts, r.Host) {
             w.Write([]byte("you may not access this resource in this way"))
             return
         }

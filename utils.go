@@ -3,11 +3,12 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
+
 	"golang.org/x/text/encoding/unicode"
 
 	"fmt"
+	"os"
 	"strings"
-        "os"
 
 	"time"
 )
@@ -225,10 +226,10 @@ func age(s string) int {
         return 0
     }
 
-    return int(time.Now().Sub(t).Hours())/8760
+    return int(time.Since(t).Hours())/8760
 }
 
-func (a AuthPostRequest) validate(ip string) (error, restriction) {
+func (a AuthPostRequest) validate() (error, restriction) {
 
     // empty restriction
     e := restriction{}
@@ -240,7 +241,7 @@ func (a AuthPostRequest) validate(ip string) (error, restriction) {
     if b, r, _ := queryIsBanned(a.id); b {
         return ErrIdBan, r
     }
-    if b, r, _ := queryIsBanned(ip); b {
+    if b, r, _ := queryIsBanned(a.ip); b {
         return ErrIpBan, r
     }
 
@@ -262,7 +263,7 @@ func (a AuthPostRequest) validate(ip string) (error, restriction) {
 
 func (f flipnote) TMB() (tmb, error) {
     buf := make([]byte, 0x6A0)
-    path := fmt.Sprintf(configuration.HatenaDir + "/hatena_storage/flipnotes/%d.ppm", f.id)
+    path := fmt.Sprintf(cnf.Dir + "/hatena_storage/flipnotes/%d.ppm", f.id)
 
     file, err := os.Open(path)
     if err != nil {

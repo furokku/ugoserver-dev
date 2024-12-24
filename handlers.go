@@ -1,22 +1,21 @@
 package main
 
-
 import (
-    "os"
-    "io"
+	"io"
+	"os"
 
-    "fmt"
+	"fmt"
 
-    "github.com/gorilla/mux"
-    "net/http"
+	"net/http"
 
-    "encoding/base64"
-    "encoding/binary"
-    "encoding/hex"
-    "strconv"
-    "strings"
+	"github.com/gorilla/mux"
+
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"strconv"
+	"strings"
 )
-
 
 // Not my finest code up there so we're doing this a better way
 func movieHandler(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +53,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "ppm":
-        data, err := os.ReadFile(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", configuration.HatenaDir, idn))
+        data, err := os.ReadFile(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", cnf.Dir, idn))
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
@@ -71,7 +70,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        fi, err := os.Stat(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", configuration.HatenaDir, idn))
+        fi, err := os.Stat(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", cnf.Dir, idn))
 
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
@@ -84,7 +83,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow<span class=\"star0\">%d</span><br>green<span class=\"star1\">%d</span><br>red<span class=\"star2\">%d</span><br>blue<span class=\"star3\">%d</span><br>purple<span class=\"star4\">%d</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".ppm", configuration.ServerUrl+path+".star",configuration.ServerUrl+path+".star/green,99",configuration.ServerUrl+path+".star/red,99",configuration.ServerUrl+path+".star/blue,99",configuration.ServerUrl+path+".star/purple,99", configuration.ServerUrl+path+".delete", flip.stars["yellow"], flip.stars["green"], flip.stars["red"], flip.stars["blue"], flip.stars["purple"], idn, fi.Size(), fi.ModTime())))
+        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow<span class=\"star0\">%d</span><br>green<span class=\"star1\">%d</span><br>red<span class=\"star2\">%d</span><br>blue<span class=\"star3\">%d</span><br>purple<span class=\"star4\">%d</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", cnf.URL+path+".ppm", cnf.URL+path+".ppm", cnf.URL+path+".star",cnf.URL+path+".star/green,99",cnf.URL+path+".star/red,99",cnf.URL+path+".star/blue,99",cnf.URL+path+".star/purple,99", cnf.URL+path+".delete", flip.stars["yellow"], flip.stars["green"], flip.stars["red"], flip.stars["blue"], flip.stars["purple"], idn, fi.Size(), fi.ModTime())))
         return
 
     case "info":
@@ -163,10 +162,10 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 
     // meta
     base.setTopScreenText("Feed", fmt.Sprintf("Page %d / %d", p, pm), "","","")
-    base.addDropdown(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", configuration.ServerUrl, pt), prettyPageTypes[pt], true)
+    base.addDropdown(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", cnf.URL, pt), prettyPageTypes[pt], true)
 
     if p > 1 {
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=&d", configuration.ServerUrl, pt, p-1), 100, "Previous")
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.URL, pt, p-1), 100, "Previous")
     }
 
     for _, f := range flipnotes {
@@ -177,14 +176,14 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", configuration.ServerUrl, f.id), 3, "", f.stars["yellow"], 765, 573, 0)
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.stars["yellow"], 765, 573, 0)
 
         base.EmbedBytes = append(base.EmbedBytes, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
     if pm > p {
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", configuration.ServerUrl, pt, p+1), 100, "Next")
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.URL, pt, p+1), 100, "Next")
     }
 
     data := base.pack(mux.Vars(r)["reg"])
@@ -212,7 +211,7 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     //    return
     //}
     
-    text, err := os.ReadFile(configuration.HatenaDir + "/static/txt/" + txt + ".txt")
+    text, err := os.ReadFile(cnf.URL + "/static/txt/" + txt + ".txt")
     if err != nil {
         warnlog.Printf("failed to read %v: %v", txt, err)
         text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
@@ -276,7 +275,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
 //  fmt.Println(id)
 
-    fp, err := os.OpenFile(configuration.HatenaDir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(cnf.Dir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // >> store by id to not allow filename clashes
         // this is kinda stupid because filenames allow to identify
@@ -319,19 +318,16 @@ func misc(w http.ResponseWriter, r *http.Request) {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("baka"))
     }
-
-    return
 }
 
 func static(w http.ResponseWriter, r *http.Request) {
-    file, err := os.ReadFile(configuration.HatenaDir + "/static" + r.URL.Path)
+    file, err := os.ReadFile(cnf.Dir + "/static" + r.URL.Path)
     if  err != nil {
         w.WriteHeader(http.StatusNotFound)
         return
     }
 
     w.Write(file)
-    return
 }
 
 
