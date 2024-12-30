@@ -158,9 +158,7 @@ func pruneSids() {
         time.Sleep(5 * time.Minute)
 
         for k, v := range sessions {
-            t := v.issued
-            elapsed := time.Now().Unix() - t.Unix()
-            if elapsed >= 7200 {
+            if time.Since(v.issued).Seconds() >= 7200 {
                 delete(sessions, k)
             }
         }

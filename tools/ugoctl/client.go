@@ -1,10 +1,10 @@
 package main
 
 import (
-    "os"
-    "fmt"
-    "net"
-    "io"
+	"fmt"
+	"io"
+	"net"
+	"os"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
         cmd += arg
     }
 
-    fmt.Printf("> %s\n", cmd)
+    fmt.Printf("< %s\n", cmd)
 
     conn, err := net.Dial("unix", sf)
     if err != nil {
@@ -33,5 +33,5 @@ func main() {
         panic(err)
     }
 
-    fmt.Printf("recv %s\n", string(buf[:n]))
+    fmt.Printf("> %s\n", string(buf[:n]))
 }

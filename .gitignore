@@ -2,8 +2,8 @@
 # dirs yourself
 hatena_storage/
 private/raw/
-config.json
 
+config.json
 nginx.conf
 dnsmasq.conf
 

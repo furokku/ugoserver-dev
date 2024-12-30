@@ -5,6 +5,7 @@
         {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=recent&page=1", "label": "Browse Flipnotes", "icon": 104},
         {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/flipnote.post", "label": "Post a Flipnote", "icon": 102},
         {"type": "button", "url": "http://flipnote.hatena.com/ds/imagetest.htm", "label": "image test", "icon": 101},
-        {"type": "button", "url": "http://flipnote.hatena.com/ds/postreplytest.htm", "label": "reply test", "icon": 101}
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/postreplytest.htm", "label": "reply test", "icon": 101},
+        {"type": "button", "url": "ugomemo://command", "label": "jump", "icon": 102}
     ]
 }

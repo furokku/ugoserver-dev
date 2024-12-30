@@ -13,9 +13,9 @@ using [nds-constrain't](https://github.com/KaeruTeam/nds-constraint), the DS can
 
 ## setup
 * create a certificate for your server using the commands in the nds-constraint github repo, and put them in `crt/common.crt` and `crt/common.key`. You should add a SAN (subject alternative name) for `ugomemo.hatena.ne.jp`, unless you plan on not using the japanese region flipnote studio
-* choose a db. There is support for either of postgresql or sqlite (using [go-sqlite3](https://github.com/mattn/go-sqlite3), requires CGO and can be slow to compile), specify build tags `postgres` or `sqlite` during compilation to choose one or the other (or both). This is necessary! otherwise you won't have any database support built in
-* compile, make sure you have a build tag for whichever db set, if you choose sqlite ensure CGO_ENABLED=1 and gcc is in your PATH
-* change configurations, sample configs are available as `default.json` and `nginx.example.conf`, `dnsmasq.example.conf`. set ips / directories / urls where necessary, preferably you should copy the default configs to some other file as they may get overwritten with future commits
+* currently the only supported database is PostgreSQL, perhaps others will be in the future. some commands for the necessary tables are in sql.txt but in the future i may integrate this into the server with a command line option to initialize the database
+* compile with make
+* change configurations, sample configs are available as `config.example.json` and `nginx.example.conf`, `dnsmasq.example.conf`. set ips / directories / urls where necessary, preferably you should copy the default configs to some other file as they may get overwritten with future commits
 * start the server. Without passing any command line arguments to it, it will attempt to read `default.json` in the current working directory. You can use a different config by passing the path to it as the first command line argument. The rest are ignored
 * set the primary DNS on your console correctly and (!) set the secondary DNS to what you use. This is important, as the provided dnsmasq configuration will only redirect the flipnote hatena urls
 <br>Flipnote studio should now be able to connect to your replacement hatena server

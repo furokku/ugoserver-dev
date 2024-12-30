@@ -10,8 +10,7 @@ func connect() (*sql.DB, error) {
     var cs string
 
     switch cnf.DB.Type {
-    case "sqlite3":
-        cs = fmt.Sprintf("file:%s/%s?cache=shared&mode=rwc", cnf.Dir, cnf.DB.File)
+    // only postgres is supported for now
     case "postgres":
         cs = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
     default:

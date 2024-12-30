@@ -102,34 +102,34 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
     id, err := strconv.Atoi(vars["id"])
     if err != nil {
         errorlog.Printf("bad id when adding star: %v", err)
+        w.WriteHeader(http.StatusBadRequest)
+        return
     }
     count, err := strconv.Atoi(r.Header.Get("X-Hatena-Star-Count"))
     if err != nil {
         errorlog.Printf("bad star count: %v", err)
+        w.WriteHeader(http.StatusBadRequest)
+        return
     }
     color, ok := vars["color"]
     if !ok {
         color = "yellow"
     }
     
-    sess, ok := sessions[r.Header.Get("X-Dsi-Sid")]
+    s, ok := sessions[r.Header.Get("X-Dsi-Sid")]
     if !ok {
         w.WriteHeader(http.StatusForbidden)
         return
     }
 
-    err = updateStarCount(id, color, count)
-    if err != nil {
-        errorlog.Printf("failed to update star count for %v: %v", id, err)
+    if err := updateStarCount(id, color, count); err != nil {
+        errorlog.Printf("failed to update star count for %v (%v): %v", id, s.fsid, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
     //TODO: add to user's starred flipnotes
-    err = updateUserStarredMovies(id, sess.fsid)
-    if err != nil {
-        print("what the fuck")
-    }
+    //err = updateUserStarredMovies(id, sess.fsid)
 }
 
 // Handler for building ugomenus for the front page
@@ -211,7 +211,7 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     //    return
     //}
     
-    text, err := os.ReadFile(cnf.URL + "/static/txt/" + txt + ".txt")
+    text, err := os.ReadFile(cnf.Dir + "/static/txt/" + txt + ".txt")
     if err != nil {
         warnlog.Printf("failed to read %v: %v", txt, err)
         text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
@@ -328,6 +328,11 @@ func static(w http.ResponseWriter, r *http.Request) {
     }
 
     w.Write(file)
+}
+
+func jump(w http.ResponseWriter, r *http.Request) {
+    w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+    w.Write(encUTF16LE("bazinga"))
 }
 
 

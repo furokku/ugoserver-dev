@@ -1,0 +1,30 @@
+{
+    "listen": "0.0.0.0",
+
+    "_comment_a": "url that will be used for links in ugomenus. set this correctly!",
+    "url": "http://flipnote.hatena.com",
+
+    "_comment_b": "where all of the magic happens",
+    "dir": "/srv/hatena",
+    
+    "db": {
+        "type": "postgres",
+
+        "_comment_c": "for postgres",
+        "host": "localhost",
+        "port": 5432,
+        "user": "furokku",
+        "pass": "foobar",
+        "name": "ugo"
+    },
+
+    "_comment_d": "specify hosts that the server will accept requests from. Used to weed out bots",
+    "use_allowed_hosts": "false",
+    "hosts": [
+        "flipnote.hatena.com",
+        "ugomemo.hatena.ne.jp",
+        "nas.nintendowifi.net",
+        "localhost:9000",
+        "127.0.0.1:9000"
+    ]
+}

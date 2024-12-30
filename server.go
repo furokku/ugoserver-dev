@@ -28,7 +28,7 @@ func main() {
 
     // Flags are kinda useless because this will always
     // be used with a configuration file
-    cf := "default.json"
+    cf := "config.json" // default file to look for
     if len(os.Args) > 1 {
         cf = os.Args[1]
     }
@@ -42,18 +42,16 @@ func main() {
     if err != nil {
         errorlog.Fatalf("failed to load config file: %v", err)
     }
-    debuglog.Printf("loaded config %v", cnf)
+    infolog.Printf("read config %s", cf)
 
-    // temporary workaround until i come up with a better format
-    // for static/template ugos that don't need to change
-
-    // done
+    // read ugo directory for static/template ugomenus
+    var nl int
     ugos, err := os.ReadDir(cnf.Dir + "/ugo")
     if err != nil {
         errorlog.Printf("%v", err)
     }
     for _, ugo := range ugos {
-        if ugo.IsDir() { // ignore dirs in /ugo/
+        if ugo.IsDir() { // ignore subdirs
             continue
         }
         name := strings.Split(ugo.Name(), ".")[0]
@@ -68,28 +66,31 @@ func main() {
         }
 
         loadedUgos[name] = tu
+        nl += 1
     }
+    infolog.Printf("ugos loaded: %d", nl)
 
     // prep graceful exit
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Interrupt)
 
 
-
     // connect to db
-    db, err := connect()
+    db, err = connect()
     if err != nil {
         errorlog.Fatalf("could not connect/reach db: %v", err)
     }
     infolog.Printf("connected to database")
 
     defer db.Close()
+    
 
     // start unix socket for ipc
+    // curious how this works on windows
     sf := "/tmp/ugoserver.sock"
     os.RemoveAll(sf)
     ipcS := newIpcListener(sf)
-    debuglog.Printf("started unix socket listener")
+    infolog.Printf("started unix socket listener")
 
     defer ipcS.stop()
 
@@ -105,7 +106,9 @@ func main() {
     // a range of urls, then filtering them as needed
     h := mux.NewRouter() // hatena
 
-
+    // log requests as they come in, eliminates a bunch of redundant code
+    h.Use(loggerMiddleware)
+    
     // TODO: tv-jp
     // v2-us, v2-eu, v2-jp, v2 auth
     // maybe v1
@@ -135,17 +138,16 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(starMovieHandler)
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(starMovieHandler)
 
-    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth).Host("nas.nintendowifi.net")
-    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth).Host("nas.nintendowifi.net")
+    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
+    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
 
     h.Path("/ds/imagetest.htm").HandlerFunc(misc)
     h.Path("/ds/postreplytest.htm").HandlerFunc(misc)
     h.Path("/ds/test.reply").Methods("POST").HandlerFunc(misc)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(jump)
 
     h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
-
-    h.Use(loggerMiddleware)
 
     h.PathPrefix("/images").HandlerFunc(static)
 

@@ -38,6 +38,7 @@ type (
             Pass    string `json:"pass"`
             Name    string `json:"name"`
         } `json:"db"`
+        UseHosts  bool     `json:"use_allowed_hosts"`
         Hosts     []string `json:"hosts"`
     }
 
@@ -46,6 +47,7 @@ type (
         username string
         issued time.Time
         ip string
+        s2r AuthPostRequest 
     }
 
     flipnote struct {

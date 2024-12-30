@@ -10,6 +10,13 @@ import (
 
 var nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
 
+func authorizer(next http.Handler) http.Handler {
+    fn := func(w http.ResponseWriter, r *http.Request) {
+    }
+    
+    return http.HandlerFunc(fn)
+}
+
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
@@ -64,9 +71,9 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         } else {
             sessions[req.sid] = session{
                 fsid: req.id,
-                username: decReqUsername(req.username),
-                issued: time.Now(),
                 ip: ip,
+                issued: time.Now(),
+                s2r: req, // store all other information upon authentication
             }
 
             w.Header()["X-DSi-SID"] = []string{req.sid}

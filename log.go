@@ -47,7 +47,7 @@ func (rw *rwWrapper) WriteHeader(code int) {
 func loggerMiddleware(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
         // ignore bots and etc.
-        if !slices.Contains(cnf.Hosts, r.Host) {
+        if cnf.UseHosts && !slices.Contains(cnf.Hosts, r.Host) {
             w.Write([]byte("you may not access this resource in this way"))
             return
         }
