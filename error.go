@@ -14,4 +14,5 @@ var (
     ErrIdBan = errors.New("user is id banned")
     ErrAlreadyBanned = errors.New("user is already banned")
     ErrInvalidDbType = errors.New("invalid db type in config")
+    ErrNoSid = errors.New("invalid sid")
 )

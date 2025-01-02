@@ -123,28 +123,28 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(loadedUgos["index"].ugoHandle())
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(a(loadedUgos["index"].ugoHandle()))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented)})
 
     // return a built ugo file with flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(serveFrontPage)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(a(serveFrontPage))
 
     // uploading
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(postFlipnote)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(a(postFlipnote))
 
     // related to fetching flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(movieHandler)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(a(movieHandler))
     // stars
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(starMovieHandler)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(starMovieHandler)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(a(starMovieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(a(starMovieHandler))
 
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
 
-    h.Path("/ds/imagetest.htm").HandlerFunc(misc)
-    h.Path("/ds/postreplytest.htm").HandlerFunc(misc)
-    h.Path("/ds/test.reply").Methods("POST").HandlerFunc(misc)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(jump)
+    h.Path("/ds/imagetest.htm").HandlerFunc(a(misc))
+    h.Path("/ds/postreplytest.htm").HandlerFunc(a(misc))
+    h.Path("/ds/test.reply").Methods("POST").HandlerFunc(a(misc))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(a(jump))
 
     h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))

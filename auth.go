@@ -8,13 +8,20 @@ import (
 	"time"
 )
 
-var nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
+const nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
 
-func authorizer(next http.Handler) http.Handler {
+// middleware authorizer
+// short name for convenience
+func a(next http.HandlerFunc) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
+        if err := isSidValid(r.Header.Get("X-Dsi-Sid")); err != nil {
+            w.WriteHeader(http.StatusUnauthorized)
+        }
+
+        next.ServeHTTP(w, r)
     }
     
-    return http.HandlerFunc(fn)
+    return fn
 }
 
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +62,14 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             color:    r.Header.Get("X-Dsi-Color"),
         }
 
-        if err, b := req.validate(); err != nil {
+        if r, err := req.validate(); err != nil {
             // funkster detected
             ref := req.sid[:6] + "_" + req.mac[6:]
             infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)
             msg := "an error occured. try again later\nreference: " + ref
 
             if err == ErrIdBan || err == ErrIpBan {
-                msg = "you have been banned until\n" + b.expires.UTC().Format(time.DateTime) + " UTC"  + "\n\nreason: " + b.message + "\n\nreference: " + ref
+                msg = "you have been banned until\n" + r.expires.UTC().Format(time.DateTime) + " UTC"  + "\n\nreason: " + r.message + "\n\nreference: " + ref
             }
 
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
@@ -169,4 +176,43 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     // datetime will be sent regardless
     resp.Set("datetime", nasEncode(time.Now().Format("20060102150405")))
     w.Write([]byte(resp.Encode()))
+}
+
+func (a AuthPostRequest) validate() (restriction, error) {
+
+    // empty restriction
+    e := restriction{}
+
+    if ok, _ := whitelistCheckId(a.id); ok {
+        return e, nil
+    }
+
+    if b, r, _ := queryIsBanned(a.id); b {
+        return r, ErrIdBan
+    }
+    if b, r, _ := queryIsBanned(a.ip); b {
+        return r, ErrIpBan
+    }
+
+    if a.mac[5:] != a.id[9:] {
+        return e, ErrAuthMacIdMismatch
+    }
+    if a.id[9:] == "BF112233" {
+        return e, ErrAuthEmulatorId
+    }
+    if a.mac == "0009BF112233" {
+        return e, ErrAuthEmulatorMac
+    }
+    if age(a.birthday) < 13 {
+        return e, ErrAuthUnderage
+    }
+
+    return e, nil
+}
+
+func isSidValid(sid string) error {
+    if _, ok := sessions[sid]; ok {
+        return nil
+    }
+    return ErrNoSid
 }

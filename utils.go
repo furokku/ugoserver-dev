@@ -227,38 +227,6 @@ func age(s string) int {
     return int(time.Since(t).Hours())/8760
 }
 
-func (a AuthPostRequest) validate() (error, restriction) {
-
-    // empty restriction
-    e := restriction{}
-
-    if ok, _ := whitelistCheckId(a.id); ok {
-        return nil, e
-    }
-
-    if b, r, _ := queryIsBanned(a.id); b {
-        return ErrIdBan, r
-    }
-    if b, r, _ := queryIsBanned(a.ip); b {
-        return ErrIpBan, r
-    }
-
-    if a.mac[5:] != a.id[9:] {
-        return ErrAuthMacIdMismatch, e
-    }
-    if a.id[9:] == "BF112233" {
-        return ErrAuthEmulatorId, e
-    }
-    if a.mac == "0009BF112233" {
-        return ErrAuthEmulatorMac, e
-    }
-    if age(a.birthday) < 13 {
-        return ErrAuthUnderage, e
-    }
-
-    return nil, e
-}
-
 func (f flipnote) TMB() (tmb, error) {
     buf := make([]byte, 0x6A0)
     path := fmt.Sprintf(cnf.Dir + "/hatena_storage/flipnotes/%d.ppm", f.id)
