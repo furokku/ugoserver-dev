@@ -16,7 +16,7 @@ using [nds-constrain't](https://github.com/KaeruTeam/nds-constraint), the DS can
 * currently the only supported database is PostgreSQL, perhaps others will be in the future. some commands for the necessary tables are in sql.txt but in the future i may integrate this into the server with a command line option to initialize the database
 * compile with make
 * change configurations, sample configs are available as `config.example.json` and `nginx.example.conf`, `dnsmasq.example.conf`. set ips / directories / urls where necessary, preferably you should copy the default configs to some other file as they may get overwritten with future commits. zone files are also supplied for a bind server
-* start the server. Without passing any command line arguments to it, it will attempt to read `default.json` in the current working directory. You can use a different config by passing the path to it as the first command line argument. The rest are ignored
+* start the server. Without passing any command line arguments to it, it will attempt to read `config.json` in the current working directory. You can use a different config by passing the path to it as the first command line argument. The rest are ignored
 * set the primary DNS on your console correctly and (!) set the secondary DNS to what you use. This is important, as the provided dnsmasq configuration will only redirect the flipnote hatena urls
 <br>Flipnote studio should now be able to connect to your replacement hatena server
 
