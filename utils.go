@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-
 var (
     utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
     utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
     chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 )
+
 
 func randBytes(size int) []byte {
     buf := make([]byte, size)
@@ -26,7 +26,6 @@ func randBytes(size int) []byte {
 
     return buf
 }
-
 
 func randAsciiString(size int) string {
     // cleaner
@@ -37,7 +36,6 @@ func randAsciiString(size int) string {
     
     return string(buf)
 }
-
 
 // nas response uses base64 with * and -
 // in place of = and + due to url reserved chars
@@ -60,7 +58,6 @@ func nasDecode(data string) (string, error) {
 
     return string(decoded), nil
 }
-
 
 func nasEncode(data any) string {
     var encoded string
@@ -86,7 +83,6 @@ func nasEncode(data any) string {
     }, encoded)
 }
 
-
 // any text that is displayed on the screen in flipnote studio
 // must be in UTF16-LE
 func encUTF16LE(data any) []byte {
@@ -107,7 +103,6 @@ func encUTF16LE(data any) []byte {
     return encoded
 }
 
-
 func decUTF16LE(data []byte) []byte {
     decoded, err := utf16d.Bytes(data)
     if err != nil {
@@ -117,7 +112,6 @@ func decUTF16LE(data []byte) []byte {
 
     return decoded
 }
-
 
 func decReqUsername(username string) string {
     bytes := make([]byte, base64.StdEncoding.DecodedLen(len(username)))
@@ -137,35 +131,6 @@ func decReqUsername(username string) string {
     return string(decoded)
 }
 
-
-// issue a unique sid to the client
-func genUniqueSession() string {
-    var sid string
-
-    for {
-        sid = randAsciiString(32)
-        if _, ok := sessions[sid]; !ok {
-            return sid
-        }
-    }
-}
-
-
-// find expired sessions and delete them every
-// 5 minutes
-func pruneSids() {
-    for {
-        time.Sleep(5 * time.Minute)
-
-        for k, v := range sessions {
-            if time.Since(v.issued).Seconds() >= 7200 {
-                delete(sessions, k)
-            }
-        }
-    }
-}
-
-
 // find amount of pages possible
 // based on total amount of flipnotes
 // in the result
@@ -178,12 +143,10 @@ func countPages(t int) int {
     return pages
 }
 
-
 // find offset for sql query based on current page
 func findOffset(p int) int {
     return (p - 1) * 50
 }
-
 
 func editCountPad(count uint16) string {
 
@@ -194,7 +157,6 @@ func editCountPad(count uint16) string {
 
     return fmt.Sprintf("%03d", count)
 }
-
 
 func reverse[T comparable](a []T) []T {
     r := make([]T, len(a))
@@ -229,7 +191,7 @@ func age(s string) int {
 
 func (f flipnote) TMB() (tmb, error) {
     buf := make([]byte, 0x6A0)
-    path := fmt.Sprintf(cnf.Dir + "/hatena_storage/flipnotes/%d.ppm", f.id)
+    path := fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, f.id)
 
     file, err := os.Open(path)
     if err != nil {

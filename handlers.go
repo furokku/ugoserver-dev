@@ -43,7 +43,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "delete":
-        err := deleteFlipnote(idn)
+        err := deleteMovie(idn)
         if err != nil {
             errorlog.Printf("failed to delete %v: %v", idn, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -53,7 +53,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "ppm":
-        data, err := os.ReadFile(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", cnf.Dir, idn))
+        data, err := os.ReadFile(fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, idn))
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
@@ -70,13 +70,13 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        fi, err := os.Stat(fmt.Sprintf("%s/hatena_storage/flipnotes/%d.ppm", cnf.Dir, idn))
+        fi, err := os.Stat(fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, idn))
 
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
         }
-        flip, err := getFlipnoteById(idn)
+        flip, err := getMovieById(idn)
         if err != nil {
             errorlog.Printf("could not get flipnote %v: %v", idn, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -116,20 +116,17 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
         color = "yellow"
     }
     
-    s, ok := sessions[r.Header.Get("X-Dsi-Sid")]
-    if !ok {
-        w.WriteHeader(http.StatusForbidden)
-        return
-    }
+    // future use to update user starred memos
+    fsid := sessions[r.Header.Get("X-Dsi-Sid")].fsid
 
-    if err := updateStarCount(id, color, count); err != nil {
-        errorlog.Printf("failed to update star count for %v (%v): %v", id, s.fsid, err)
+    if err := updateMovieStars(id, color, count); err != nil {
+        errorlog.Printf("failed to update star count for %v (%v): %v", id, fsid, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
     //TODO: add to user's starred flipnotes
-    //err = updateUserStarredMovies(id, sess.fsid)
+    //err = updateUserStarredMovies(id, fsid)
 }
 
 // Handler for building ugomenus for the front page
@@ -152,7 +149,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    flipnotes, total, err := getFrontFlipnotes(pt, p)
+    flipnotes, total, err := getFrontMovies(pt, p)
     if err != nil {
         errorlog.Printf("could not get flipnotes: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -169,6 +166,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     }
 
     for _, f := range flipnotes {
+        fmt.Println(f)
 //      lock := btoi(f.lock)
         tempTmb, err := f.TMB()
         if err != nil {
@@ -228,15 +226,8 @@ func handleEulaTsv(w http.ResponseWriter, r *http.Request) {
 // or flipnote.post url
 func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
-    // make sure request has a valid SID
-    // we don't want a flood of random flipnotes
-    // after all...
-    session, ok := sessions[r.Header.Get("X-Dsi-Sid")]
-    if !ok {
-        warnlog.Printf("unauthorized attempt to post flipnote")
-        w.WriteHeader(http.StatusUnauthorized)
-        return
-    }
+    // validation is done by middleware
+    sess := sessions[r.Header.Get("X-Dsi-Sid")]
 
     ppmBody, err := io.ReadAll(r.Body)
     if err != nil {
@@ -245,7 +236,6 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    var id int
     aid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x5E : 0x66])))
     an := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56]))
     paid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x56 : 0x5E])))
@@ -257,25 +247,20 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
-    if ok, err := checkMovieExistsAfn(afn); ok && err == nil {
+    id, err := addMovie(aid, an, paid, pan, afn, l)
+    if err == ErrMovieExists {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-        w.Write(encUTF16LE("duplicate flipnote"))
+        w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
         return
     } else if err != nil {
-        errorlog.Printf("could not check if flipnote %v exists: %v", afn, err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
-
-    if err := db.QueryRow("INSERT INTO flipnotes (author_id, author_name, parent_author_id, parent_author_name, author_filename, lock) VALUES ($1, $2, $3, $4, $5, $6) RETURNING (id)", aid, an, paid, pan, afn, l).Scan(&id); err != nil {
-        errorlog.Printf("failed to update database: %v", err)
+        errorlog.Printf("could not add flipnote: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
 //  fmt.Println(id)
 
-    fp, err := os.OpenFile(cnf.Dir + "/hatena_storage/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(cnf.StoreDir + "/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // >> store by id to not allow filename clashes
         // this is kinda stupid because filenames allow to identify
@@ -296,7 +281,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    infolog.Printf("%v (%v) uploaded flipnote %v", session.username, session.fsid, afn)
+    infolog.Printf("%v (%v) uploaded flipnote %v", sess.username, sess.fsid, afn)
     w.WriteHeader(http.StatusOK)
 }
 

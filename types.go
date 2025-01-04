@@ -28,6 +28,7 @@ type (
         Listen    string `json:"listen"`
         URL string `json:"url"`
         Dir string `json:"dir"`
+        StoreDir string `json:"store_dir"`
 
         DB struct {
             Type    string `json:"type"`
@@ -63,6 +64,7 @@ type (
         downloads int
         stars map[string]int
         deleted bool
+        channel int
     }
 
     restriction struct {

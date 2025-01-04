@@ -15,4 +15,5 @@ var (
     ErrAlreadyBanned = errors.New("user is already banned")
     ErrInvalidDbType = errors.New("invalid db type in config")
     ErrNoSid = errors.New("invalid sid")
+    ErrMovieExists = errors.New("flipnote already exists on server")
 )

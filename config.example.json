@@ -7,6 +7,9 @@
     "_comment_b": "where all of the magic happens",
     "dir": "/srv/hatena",
     
+    "comment_e": "storage for all things that need to be written to disk",
+    "store_dir": "/srv/hatena-storage",
+    
     "db": {
         "type": "postgres",
 

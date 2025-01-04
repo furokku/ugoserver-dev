@@ -118,6 +118,7 @@ func (u Ugomenu) pack(r string) []byte {
 
     for _, item := range u.Items {
         url := strings.Replace(item.URL, "v2-xx", r, 1)
+        url = strings.Replace(url, "http://flipnote.hatena.com", cnf.URL, 1)
         switch item.Type {
         case "dropdown":
             menus = append(menus, menubc(2, url, q(item.Label), btoi(item.Selected))...)

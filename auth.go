@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-const nastoken string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
+// we do not use nas much
+// so this can be garbage
+const NAS_TOKEN string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
 
 // middleware authorizer
 // short name for convenience
@@ -16,6 +18,7 @@ func a(next http.HandlerFunc) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
         if err := isSidValid(r.Header.Get("X-Dsi-Sid")); err != nil {
             w.WriteHeader(http.StatusUnauthorized)
+            return
         }
 
         next.ServeHTTP(w, r)
@@ -42,7 +45,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         // something to do with XOR keys
         // is it really needed? probably not
         w.Header()["X-DSi-Auth-Challenge"] = []string{"mangoloco"}
-        w.Header()["X-DSi-SID"] = []string{genUniqueSession()}
+        w.Header()["X-DSi-SID"] = []string{generateUniqueSession()}
 
     case "POST":
 
@@ -83,6 +86,8 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
                 s2r: req, // store all other information upon authentication
             }
 
+            // possible to add X-DSi-New/Unread-Notices here
+            // for flashing NEW on inbox button
             w.Header()["X-DSi-SID"] = []string{req.sid}
             debuglog.Printf("new session %v : %v\n", req.sid, sessions[req.sid])
         }
@@ -152,7 +157,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                     resp.Set("locator", nasEncode("gamespy.com"))
                     resp.Set("retry", nasEncode("0"))
                     resp.Set("returncd", nasEncode("001"))
-                    resp.Set("token", nasEncode([]byte(nastoken)))
+                    resp.Set("token", nasEncode([]byte(NAS_TOKEN)))
 
                 case "acctcreate":
                     resp.Set("retry", nasEncode("0"))
@@ -183,14 +188,14 @@ func (a AuthPostRequest) validate() (restriction, error) {
     // empty restriction
     e := restriction{}
 
-    if ok, _ := whitelistCheckId(a.id); ok {
+    if ok, _ := whitelistQueryFsid(a.id); ok {
         return e, nil
     }
 
-    if b, r, _ := queryIsBanned(a.id); b {
+    if b, r, _ := queryBan(a.id); b {
         return r, ErrIdBan
     }
-    if b, r, _ := queryIsBanned(a.ip); b {
+    if b, r, _ := queryBan(a.ip); b {
         return r, ErrIpBan
     }
 
@@ -215,4 +220,30 @@ func isSidValid(sid string) error {
         return nil
     }
     return ErrNoSid
+}
+
+// issue a unique sid to the client
+func generateUniqueSession() string {
+    var sid string
+
+    for {
+        sid = randAsciiString(32)
+        if _, ok := sessions[sid]; !ok {
+            return sid
+        }
+    }
+}
+
+// find expired sessions and delete them every
+// 5 minutes
+func pruneSids() {
+    for {
+        time.Sleep(5 * time.Minute)
+
+        for k, v := range sessions {
+            if time.Since(v.issued).Seconds() >= 7200 {
+                delete(sessions, k)
+            }
+        }
+    }
 }

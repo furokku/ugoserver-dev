@@ -24,6 +24,10 @@ var (
     loadedUgos = make(map[string]Ugomenu)
 )
 
+const (
+    SOCKET_FILE = "/tmp/ugoserver.sock"
+)
+
 func main() {
 
     // Flags are kinda useless because this will always
@@ -58,11 +62,13 @@ func main() {
         bytes, err := os.ReadFile(cnf.Dir + "/ugo/" + ugo.Name())
         if err != nil {
             errorlog.Printf("%v", err)
+            continue
         }
         tu := Ugomenu{}
         err = json.Unmarshal(bytes, &tu)
         if err != nil {
             errorlog.Printf("error parsing %s: %v", name, err)
+            continue
         }
 
         loadedUgos[name] = tu
@@ -87,9 +93,8 @@ func main() {
 
     // start unix socket for ipc
     // curious how this works on windows
-    sf := "/tmp/ugoserver.sock"
-    os.RemoveAll(sf)
-    ipcS := newIpcListener(sf)
+    os.RemoveAll(SOCKET_FILE)
+    ipcS := newIpcListener(SOCKET_FILE)
     infolog.Printf("started unix socket listener")
 
     defer ipcS.stop()
@@ -150,6 +155,9 @@ func main() {
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
 
     h.PathPrefix("/images").HandlerFunc(static)
+    
+    h.PathPrefix("/api/v1").HandlerFunc(api)
+    h.PathPrefix("/api/manage").HandlerFunc(mgmt)
 
     // define servers
     hatena := &http.Server{Addr: cnf.Listen + ":9000", Handler: h}
