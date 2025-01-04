@@ -1,6 +1,5 @@
 # you should create these
 # dirs yourself
-hatena_storage/flipnotes/*.ppm
 private/raw/
 
 config.json
