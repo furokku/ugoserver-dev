@@ -11,16 +11,16 @@ const (
     SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1"
     SQL_MOVIE_COUNT string = "SELECT count(1) FROM movies WHERE deleted = false"
     SQL_MOVIE_GET_BY_ID string = "SELECT * FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false AND id = $1"
-    SQL_MOVIE_GET_RECENT string = "SELECT id, yst, gst, rst, bst, pst FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY uploaded DESC LIMIT 50 OFFSET ($1-1)*50"
+    SQL_MOVIE_GET_RECENT string = "SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY uploaded DESC LIMIT 50 OFFSET ($1-1)*50"
     SQL_MOVIE_UPDATE_DL string = "UPDATE movies SET downloads = downloads + 1 WHERE id = $1"
     SQL_MOVIE_UPDATE_VIEWS string = "UPDATE movies SET views = views + 1 WHERE id = $1"
     SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1) AS \"EXISTS\""
 
-    SQL_MOVIE_UPDATE_USER_STAR_YELLOW string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS ys) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ys = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, ys) VALUES ($1, $2, $3)"
-    SQL_MOVIE_UPDATE_USER_STAR_GREEN string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS gs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET gs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, gs) VALUES ($1, $2, $3)"
-    SQL_MOVIE_UPDATE_USER_STAR_RED string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS rs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET rs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, rs) VALUES ($1, $2, $3)"
-    SQL_MOVIE_UPDATE_USER_STAR_BLUE string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS bs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET bs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, bs) VALUES ($1, $2, $3)"
-    SQL_MOVIE_UPDATE_USER_STAR_PURPLE string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS ps) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ps = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, ps) VALUES ($1, $2, $3)"
+    SQL_MOVIE_UPDATE_USER_STAR_YELLOW string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS ys) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ys = target.ys + source.ys WHEN NOT MATCHED THEN INSERT (userid, movieid, ys) VALUES (source.userid, source.movieid, source.ys)"
+    SQL_MOVIE_UPDATE_USER_STAR_GREEN string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS gs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET gs = target.gs + source.gs WHEN NOT MATCHED THEN INSERT (userid, movieid, gs) VALUES (source.userid, source.movieid, source.gs)"
+    SQL_MOVIE_UPDATE_USER_STAR_RED string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS rs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET rs = target.rs + source.rs WHEN NOT MATCHED THEN INSERT (userid, movieid, rs) VALUES (source.userid, source.movieid, source.rs)"
+    SQL_MOVIE_UPDATE_USER_STAR_BLUE string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS bs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET bs = target.bs + source.bs WHEN NOT MATCHED THEN INSERT (userid, movieid, bs) VALUES (source.userid, source.movieid, source.bs)"
+    SQL_MOVIE_UPDATE_USER_STAR_PURPLE string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS ps) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ps = target.ps + source.ps WHEN NOT MATCHED THEN INSERT (userid, movieid, ps) VALUES (source.userid, source.movieid, source.ps)"
     
     SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (fsid) VALUES ($1)"
     SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE fsid = $1"
@@ -31,8 +31,9 @@ const (
     SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
     SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
-    SQL_USER_REGISTER string = "INSERT INTO users (username, password, fsid) VALUES ($1, crypt($2, gen_salt('bf')), fsid)"
+    SQL_USER_REGISTER string = "INSERT INTO users (username, password, fsid) VALUES ($1, crypt($2, gen_salt('bf')), fsid) RETURNING (id)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
+    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password)) AS \"EXISTS\""
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
     SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users WHERE id = $1 SET last_login_ip = $2"
     SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1"
@@ -83,7 +84,7 @@ func getMoviesList(stmt string, args ...any) ([]flipnote, error) {
         m := flipnote{}
 
         // in a list the star count is a total, so throw that into ys
-        if err := rows.Scan(&m.id, &m.ys, &m.gs, &m.rs, &m.bs, &m.ps); err != nil {
+        if err := rows.Scan(&m.id, &m.ys); err != nil {
             return []flipnote{}, err
         }
         memos = append(memos, m)
@@ -161,7 +162,6 @@ func updateMovieStars(userid int, movieid int, color string, count int) error {
         return err
     }
     
-    // then everything else
     return nil
 }
 
@@ -216,12 +216,12 @@ func whitelistDelFsid(fsid string) error {
 }
 
 func whitelistQueryFsid(fsid string) (bool, error) {
-    var exists bool
-    err := db.QueryRow(SQL_WHITELIST_FSID_CHECK, fsid).Scan(&exists)
+    var v bool
+    err := db.QueryRow(SQL_WHITELIST_FSID_CHECK, fsid).Scan(&v)
     if err != nil {
         return false, err
     }
-    return exists, nil
+    return v, nil
 }
 
 // returns only true/false
@@ -269,19 +269,20 @@ func pardonBanId(banid int) error {
     return nil
 }
 
-func registerUser(username string, password string, fsid string) error {
-    if _, err := db.Exec(SQL_USER_REGISTER, username, password, fsid); err != nil {
-        return err
-    }
-    return nil
-}
-
-func verifyUser(username string, password string) (int, error) {
+func registerUser(username string, password string, fsid string) (int, error) {
     var userid int
-    if err := db.QueryRow(SQL_USER_VERIFY, username, password).Scan(&userid); err != nil {
+    if err := db.QueryRow(SQL_USER_REGISTER, username, password, fsid).Scan(&userid); err != nil {
         return 0, err
     }
     return userid, nil
+}
+
+func verifyUserDsi(userid int, password string) (bool, error) {
+    var v bool
+    if err := db.QueryRow(SQL_USER_VERIFY_DSI, userid, password).Scan(&v); err != nil {
+        return false, err
+    }
+    return v, nil
 }
 
 func getUserDsi(fsid string) (int, string, error) {
@@ -294,6 +295,13 @@ func getUserDsi(fsid string) (int, string, error) {
     }
     
     return userid, last_login_ip, nil
+}
+
+func updateUserLastLogin(userid int, ip string) error {
+    if _, err := db.Exec(SQL_USER_UPDATE_LAST_LOGIN_IP, userid, ip); err != nil {
+        return err
+    }
+    return nil
 }
 
 func registerApiToken(userid int) error {

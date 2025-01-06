@@ -126,7 +126,7 @@ func main() {
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
+    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv) // europe stuff
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(dsi_am(false, loadedUgos["index"].ugoHandle()))
 
@@ -137,7 +137,8 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(true, postFlipnote))
 
     // related to fetching flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(dsi_am(false, movieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:ppm|htm|info|dl)}").Methods("GET", "POST").HandlerFunc(dsi_am(false, movieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(dsi_am(true, movieHandler))
     // stars
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
@@ -147,6 +148,10 @@ func main() {
     
     // debug menu for testing features / quick access
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/debug.htm").Methods("GET").HandlerFunc(dsi_am(false, debug))
+
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.htm").Methods("GET").HandlerFunc(dsi_am(false, sa_login))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.kbd").Methods("POST").HandlerFunc(dsi_am(false, sa_login_kbd))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/success.htm").Methods("GET").HandlerFunc(dsi_am(true, sa_success))
 
     h.Path("/ds/imagetest.htm").HandlerFunc(dsi_am(false, misc))
     h.Path("/ds/postreplytest.htm").HandlerFunc(dsi_am(false, misc))

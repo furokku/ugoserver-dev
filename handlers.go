@@ -163,7 +163,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.ys+f.gs+f.rs+f.bs+f.ps, 765, 573, 0)
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.ys, 765, 573, 0)
 
         base.EmbedBytes = append(base.EmbedBytes, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
@@ -173,7 +173,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
         base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.URL, pt, p+1), 100, "Next")
     }
 
-    data := base.pack(mux.Vars(r)["reg"])
+    data := base.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion())
     w.Write(data)
 }
 
@@ -311,20 +311,5 @@ func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
 
-    w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t</body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
-}
-
-
-func cmd(r string) string {
-    args := strings.Split(r, " ")
-
-    switch args[0] {
-    case "test":
-        if len(args) < 5 {
-            return fmt.Sprintf("expected 5 arguments; got %d: %v", len(args), args)
-        }
-        return "big day"
-    default:
-        return "invalid command"
-    }
+    w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.htm\">log in</a></body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
 }

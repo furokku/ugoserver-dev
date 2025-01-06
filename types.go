@@ -16,11 +16,11 @@ type (
         sid      string
         ver      string
         username string
-        region   string
+        region   int // 0:jp 1:us 2:eu
         lang     string
         country  string
         birthday string
-        datetime string
+        datetime string // ds supplied date/time. use this?
         color    string
 
         ip     string // current ip

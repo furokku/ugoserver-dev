@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/gorilla/mux"
 )
 
 const magic string = "UGAR"
@@ -117,7 +115,7 @@ func (u Ugomenu) pack(r string) []byte {
     }
 
     for _, item := range u.Items {
-        url := strings.Replace(item.URL, "v2-xx", r, 1)
+        url := strings.Replace(item.URL, "xx", r, 1)
         url = strings.Replace(url, "http://flipnote.hatena.com", cnf.URL, 1)
         switch item.Type {
         case "dropdown":
@@ -159,7 +157,7 @@ func (u Ugomenu) pack(r string) []byte {
 func (u Ugomenu) ugoHandle() http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
-        w.Write(u.pack(mux.Vars(r)["reg"]))
+        w.Write(u.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion()))
     }
 
     return fn

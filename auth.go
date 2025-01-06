@@ -6,6 +6,8 @@ import (
 	"net/url"
 
 	"time"
+
+	"strconv"
 )
 
 // we do not use nas much
@@ -60,6 +62,13 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     case "POST":
 
         sid := r.Header.Get("X-Dsi-Sid")
+        region, err := strconv.Atoi(r.Header.Get("X-Dsi-Region"))
+        if err != nil {
+            region = 0
+            errorlog.Printf("%s tried to authenticate with invalid region", ip)
+            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+            w.Write(encUTF16LE("an error occurred during\nearly authentication.\n\nreport this!"))
+        }
 
         // fill out with initial data
         req := session{
@@ -69,7 +78,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             sid:      sid,
             ver:      r.Header.Get("X-Ugomemo-Version"),
             username: r.Header.Get("X-Dsi-User-Name"),
-            region:   r.Header.Get("X-Dsi-Region"),
+            region:   region,
             lang:     r.Header.Get("X-Dsi-Lang"),
             country:  r.Header.Get("X-Dsi-Country"),
             birthday: r.Header.Get("X-Birthday"),
@@ -278,4 +287,78 @@ func pruneSids() {
             }
         }
     }
+}
+
+func (s session) getregion() string {
+    var r string
+    switch s.region {
+    case 0:
+        r = "jp"
+    case 1:
+        r = "us"
+    case 2:
+        r = "eu"
+    }
+    return r
+}
+
+func sa_login(w http.ResponseWriter, r *http.Request) {
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    ret := r.URL.Query().Get("ret")
+
+    if s.is_logged_in || s.is_unregistered {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    switch ret {
+    case "error":
+        w.Write([]byte("<html><head></head><body>an error occurred</body></html>"))
+        return
+    case "invalid":
+        w.Write([]byte("<html><head></head><body>invalid password</body><html>"))
+        return
+    }
+    
+    w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"login page\"></head><body>welcome<br>enter your password here:<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.kbd\">keyboard</a></body></html>"))
+}
+
+func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
+    sid := r.Header.Get("X-Dsi-Sid")
+    s := sessions[sid]
+    in := r.Header.Get("X-Email-Addr")
+    
+    // sanity check
+    if s.is_unregistered || s.is_logged_in {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    if v, err := verifyUserDsi(s.userid, in); err != nil {
+        // handle error
+        errorlog.Printf("while verifying user %d, %v", s.userid, err)
+        w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=error"}
+        return
+    } else if !v {
+        w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=invalid"}
+        return
+    }
+
+    if err := updateUserLastLogin(s.userid, r.Header.Get("X-Real-Ip")); err != nil {
+        errorlog.Printf("while updating last login ip: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    s.is_logged_in = true
+    sessions[sid] = s
+
+    w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/success.htm"}
+    w.WriteHeader(http.StatusOK)
+}
+
+func sa_success(w http.ResponseWriter, r *http.Request) {
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
+
+    w.Write([]byte("<html><head></head><body>you have successfully logged in! (id " + strconv.Itoa(s.userid) + ")</body></html>"))
 }

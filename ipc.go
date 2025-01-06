@@ -1,8 +1,10 @@
 package main
 
 import (
-    "net"
-    "io"
+	"fmt"
+	"io"
+	"net"
+	"strings"
 )
 
 func newIpcListener(sf string) *ipcListener {
@@ -65,5 +67,19 @@ func ipc(conn net.Conn) {
         resp := cmd(req)
         infolog.Printf("cmd: %v", req)
         io.WriteString(conn, resp)
+    }
+}
+
+func cmd(r string) string {
+    args := strings.Split(r, " ")
+
+    switch args[0] {
+    case "test":
+        if len(args) < 5 {
+            return fmt.Sprintf("expected 5 arguments; got %d: %v", len(args), args)
+        }
+        return "big day"
+    default:
+        return "invalid command"
     }
 }
