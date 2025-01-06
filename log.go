@@ -18,14 +18,6 @@ var (
     errorlog = log.New(os.Stdout, "\033[31m[error] " + colorReset, log.Lshortfile|log.Ldate|log.Ltime)
 )
 
-type (
-    rwWrapper struct {
-        http.ResponseWriter
-        status int
-        done bool
-    }
-)
-
 func wrapResponseWriter(w http.ResponseWriter) *rwWrapper {
     return &rwWrapper{ResponseWriter: w}
 }

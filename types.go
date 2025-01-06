@@ -2,16 +2,16 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
 
 // should be self-explanatory
 type (
-    AuthPostRequest struct {
+    session struct {
         mac      string
-        id       string
-        ip       string
+        fsid     string
         auth     string
         sid      string
         ver      string
@@ -22,12 +22,19 @@ type (
         birthday string
         datetime string
         color    string
-    }
 
+        ip     string // current ip
+        issued time.Time
+
+        is_unregistered bool
+        is_logged_in bool
+        userid int
+    }
+    
     Configuration struct {
-        Listen    string `json:"listen"`
-        URL string `json:"url"`
-        Dir string `json:"dir"`
+        Listen   string `json:"listen"`
+        URL      string `json:"url"`
+        Dir      string `json:"dir"`
         StoreDir string `json:"store_dir"`
 
         DB struct {
@@ -43,48 +50,36 @@ type (
         Hosts     []string `json:"hosts"`
     }
 
-    session struct {
-        fsid string
-        username string
-        issued time.Time
-        ip string
-        s2r AuthPostRequest 
-    }
-
     flipnote struct {
         id int
-        author_id string
+        author_userid int
+        author_fsid string
         author_name string
-        parent_author_id string
-        parent_author_name string
         author_filename string
-        uploaded_at time.Time
+        uploaded time.Time
         lock bool
         views int
         downloads int
-        stars map[string]int
         deleted bool
-        channel int
+        channelid int
+        ys int // stars
+        gs int
+        rs int
+        bs int
+        ps int
     }
 
     restriction struct {
-        id int
-        issuer string
-        issued time.Time
-        expires time.Time
-        reason string
-        message string
-        pardon bool
+        banid    int
+        issuer   string
+        issued   time.Time
+        expires  time.Time
+        message  string
+        pardon   bool
         affected string
     }
 
     tmb []byte
-
-    UgomenuDepr struct {
-        Layout []uint
-        Entries []MenuEntry
-        Embed [][]byte
-    }
 
     MenuEntry struct {
         Type uint
@@ -101,8 +96,8 @@ type (
             Uppersubtop    string `json:"uppersubtop,omitempty"`
             Uppersubbottom string `json:"uppersubbottom,omitempty"`
         } `json:"top"`
-        Items []MenuItem `json:"items"`
-        Embed []string `json:"embed"`
+        Items      []MenuItem `json:"items"`
+        Embed      []string `json:"embed"`
         EmbedBytes [][]byte
     }
 
@@ -122,5 +117,11 @@ type (
         listener net.Listener
         quit     chan interface{}
         wg       sync.WaitGroup
+    }
+
+    rwWrapper struct {
+        http.ResponseWriter
+        status int
+        done   bool
     }
 )

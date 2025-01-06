@@ -7,24 +7,20 @@ import (
 )
 
 const (
+    SQL_MOVIE_ADD string = "INSERT INTO movies (author_userid, author_fsid, author_name, author_filename, lock) VALUES ($1, $2, $3, $4, $5) RETURNING (id)"
+    SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1"
     SQL_MOVIE_COUNT string = "SELECT count(1) FROM movies WHERE deleted = false"
-
-    SQL_MOVIE_GET_ID string = "SELECT * FROM movies WHERE deleted = false AND id = $1"
-    SQL_MOVIE_GET_RECENT string = "SELECT * FROM movies WHERE deleted = false ORDER BY uploaded_at DESC LIMIT 50 OFFSET $1"
-    
-    SQL_MOVIE_UPDATE_YELLOW_STAR string = "UPDATE movies SET yellow_stars = yellow_stars + $1 WHERE id = $2"
-    SQL_MOVIE_UPDATE_GREEN_STAR string = "UPDATE movies SET green_stars = green_stars + $1 WHERE id = $2"
-    SQL_MOVIE_UPDATE_RED_STAR string = "UPDATE movies SET red_stars = red_stars + $1 WHERE id = $2"
-    SQL_MOVIE_UPDATE_BLUE_STAR string = "UPDATE movies SET blue_stars = blue_stars + $1 WHERE id = $2"
-    SQL_MOVIE_UPDATE_PURPLE_STAR string = "UPDATE movies SET purple_stars = purple_stars + $1 WHERE id = $2"
-
+    SQL_MOVIE_GET_BY_ID string = "SELECT * FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false AND id = $1"
+    SQL_MOVIE_GET_RECENT string = "SELECT id, yst, gst, rst, bst, pst FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY uploaded DESC LIMIT 50 OFFSET ($1-1)*50"
     SQL_MOVIE_UPDATE_DL string = "UPDATE movies SET downloads = downloads + 1 WHERE id = $1"
     SQL_MOVIE_UPDATE_VIEWS string = "UPDATE movies SET views = views + 1 WHERE id = $1"
-    
-    SQL_MOVIE_ADD string = "INSERT INTO movies (author_id, author_name, parent_author_id, parent_author_name, author_filename, lock) VALUES ($1, $2, $3, $4, $5, $6) RETURNING (id)"
-    SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1"
-    
     SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1) AS \"EXISTS\""
+
+    SQL_MOVIE_UPDATE_USER_STAR_YELLOW string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS ys) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ys = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, ys) VALUES ($1, $2, $3)"
+    SQL_MOVIE_UPDATE_USER_STAR_GREEN string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS gs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET gs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, gs) VALUES ($1, $2, $3)"
+    SQL_MOVIE_UPDATE_USER_STAR_RED string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS rs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET rs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, rs) VALUES ($1, $2, $3)"
+    SQL_MOVIE_UPDATE_USER_STAR_BLUE string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS bs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET bs = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, bs) VALUES ($1, $2, $3)"
+    SQL_MOVIE_UPDATE_USER_STAR_PURPLE string = "MERGE INTO user_star AS target USING (SELECT $1 AS userid, $2 AS movieid, $3 AS ps) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ps = $3 WHEN NOT MATCHED THEN INSERT (userid, movieid, ps) VALUES ($1, $2, $3)"
     
     SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (fsid) VALUES ($1)"
     SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE fsid = $1"
@@ -33,15 +29,17 @@ const (
     SQL_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
     SQL_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
     SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
-    SQL_BAN_PARDON_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
+    SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
-    SQL_USER_REGISTER string = "INSERT INTO users (username, password) VALUES ($1, crypt($2, gen_salt('bf')))"
+    SQL_USER_REGISTER string = "INSERT INTO users (username, password, fsid) VALUES ($1, crypt($2, gen_salt('bf')), fsid)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
+    SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users WHERE id = $1 SET last_login_ip = $2"
+    SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1"
 
     SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret)) AS \"EXISTS\""
     SQL_APITOKEN_REGISTER string = "INSERT INTO apitokens (userid, secret) VALUES ($1, crypt($2, gen_salt('bf')))"
-    SQL_APITOKEN_VERIFY string = "SELECT users.id FROM apitokens JOIN users ON apitokens.userid = users.id WHERE expires > now() AND apitokens.secret = crypt($1, apitokens.secret)"
+    SQL_APITOKEN_VERIFY string = "SELECT userid FROM apitokens WHERE expires > now() AND secret = crypt($1, apitokens.secret)"
 )
 
 func connect() (*sql.DB, error) {
@@ -70,9 +68,9 @@ func connect() (*sql.DB, error) {
 // what DB.Exec or DB.Query returns, if applicable. Handle it!
 
 // return flipnotes for sql statement
-func queryDbMovies(stmt string, args ...any) ([]flipnote, error) {
+func getMoviesList(stmt string, args ...any) ([]flipnote, error) {
 
-    var resp []flipnote
+    var memos []flipnote
 
     rows, err := db.Query(stmt, args...)
     if err != nil {
@@ -82,26 +80,29 @@ func queryDbMovies(stmt string, args ...any) ([]flipnote, error) {
     defer rows.Close()
 
     for rows.Next() {
-        r := flipnote{stars:make(map[string]int)}
+        m := flipnote{}
 
-        // maybe replace this with root author? To show "original creator" perhaps
-        var y,g,tr,b,p int
-        if err := rows.Scan(&r.id, &r.author_id, &r.author_name, &r.parent_author_id, &r.parent_author_name, &r.author_filename, &r.uploaded_at, &r.views, &r.downloads, &y, &g, &tr, &b, &p, &r.lock, &r.deleted, &r.channel); err != nil {
+        // in a list the star count is a total, so throw that into ys
+        if err := rows.Scan(&m.id, &m.ys, &m.gs, &m.rs, &m.bs, &m.ps); err != nil {
             return []flipnote{}, err
         }
-        r.stars["yellow"]=y
-        r.stars["green"]=g
-        r.stars["red"]=tr
-        r.stars["blue"]=b
-        r.stars["purple"]=p 
-        resp = append(resp, r)
-        fmt.Println("appended flipnote", r)
+        memos = append(memos, m)
     }
 
-    return resp, nil
+    return memos, nil
 }
 
-func updateViewDlCount(id int, t string) error {
+func getMovieSingle(movieid int) (flipnote, error) {
+    var m flipnote
+
+    if err := db.QueryRow(SQL_MOVIE_GET_BY_ID, movieid).Scan(&m.id, &m.author_userid, &m.author_fsid, &m.author_name, &m.author_filename, &m.uploaded, &m.views, &m.downloads, &m.lock, &m.deleted, &m.channelid, &m.ys, &m.gs, &m.rs, &m.bs, &m.ps); err != nil {
+        return flipnote{}, err
+    }
+
+    return m, nil
+}
+
+func updateViewDlCount(movieid int, t string) error {
     var q string
     switch t {
     case "dl":
@@ -109,66 +110,64 @@ func updateViewDlCount(id int, t string) error {
     case "ppm":
         q = SQL_MOVIE_UPDATE_VIEWS
     }
-    if _, err := db.Exec(q, id); err != nil {
+    if _, err := db.Exec(q, movieid); err != nil {
         return err
     }
     return nil
 }
 
-func addMovie(aid string, an string, paid string, pan string, afn string, l int) (int, error) {
-    var id int
+func addMovie(userid int, fsid string, name string, fn string, l int) (int, error) {
+    var new_movieid int
 
     // check if flipnote has already been uploaded
     // using filename (they are always unique)
-    if exists, err := checkMovieExistsAfn(afn); err != nil {
+    if exists, err := checkMovieExistsAfn(fn); err != nil {
         return 0, err
     } else if exists {
         return 0, ErrMovieExists
     }
     
-    if err := db.QueryRow(SQL_MOVIE_ADD, aid, an, paid, pan, afn, l).Scan(&id); err != nil {
+    if err := db.QueryRow(SQL_MOVIE_ADD, userid, fsid, name, fn, l).Scan(&new_movieid); err != nil {
         return 0, err
     }
     
-    return id, nil
+    return new_movieid, nil
 }
 
-func deleteMovie(id int) error {
-    if _, err := db.Exec(SQL_MOVIE_DELETE, id); err != nil {
+func deleteMovie(movieid int) error {
+    if _, err := db.Exec(SQL_MOVIE_DELETE, movieid); err != nil {
         return err
     }
     return nil
 }
 
-func updateMovieStars(id int, color string, n int) error {
+func updateMovieStars(userid int, movieid int, color string, count int) error {
     var q string
     switch color {
     case "yellow":
-        q = SQL_MOVIE_UPDATE_YELLOW_STAR
+        q = SQL_MOVIE_UPDATE_USER_STAR_YELLOW
     case "green":
-        q = SQL_MOVIE_UPDATE_GREEN_STAR
+        q = SQL_MOVIE_UPDATE_USER_STAR_GREEN
     case "red":
-        q = SQL_MOVIE_UPDATE_RED_STAR
+        q = SQL_MOVIE_UPDATE_USER_STAR_RED
     case "blue":
-        q = SQL_MOVIE_UPDATE_BLUE_STAR
+        q = SQL_MOVIE_UPDATE_USER_STAR_BLUE
     case "purple":
-        q = SQL_MOVIE_UPDATE_PURPLE_STAR
+        q = SQL_MOVIE_UPDATE_USER_STAR_PURPLE
     }
-    if _, err := db.Exec(q, n, id); err != nil {
+
+    // first update the flipnote
+    if _, err := db.Exec(q, userid, movieid, count); err != nil {
         return err
     }
-    return nil
-}
-
-func updateUserStarredMovies(id int, fsid string) error {
-    //todo
+    
+    // then everything else
     return nil
 }
 
 func getFrontMovies(ptype string, p int) ([]flipnote, int, error) {
     var total int
     var q string
-    offset := findOffset(p)
     
     switch ptype {
     case "recent":
@@ -183,23 +182,12 @@ func getFrontMovies(ptype string, p int) ([]flipnote, int, error) {
         return []flipnote{}, 0, err
     }
 
-    memos, err := queryDbMovies(q, offset)
+    movies, err := getMoviesList(q, p)
     if err != nil {
         return []flipnote{}, 0, err
     }
     
-    fmt.Println("returned flipnotes", memos)
-
-    return memos, total, nil
-}
-
-func getMovieById(id int) (flipnote, error) {
-    memo, err := queryDbMovies(SQL_MOVIE_GET_ID, id)
-    if err != nil {
-        return flipnote{}, err
-    }
-
-    return memo[0], nil
+    return movies, total, nil
 }
 
 func checkMovieExistsAfn(afn string) (bool, error) {
@@ -249,7 +237,7 @@ func checkIsBanned(affected string) (bool, error) {
 // returns whole ban
 func queryBan(affected string) (bool, restriction, error) {
     b := restriction{}
-    err := db.QueryRow(SQL_BAN_QUERY, affected).Scan(&b.id, &b.issuer, &b.issued, &b.expires, &b.reason, &b.message, &b.pardon, &b.affected)
+    err := db.QueryRow(SQL_BAN_QUERY, affected).Scan(&b.banid, &b.issuer, &b.issued, &b.expires, &b.message, &b.pardon, &b.affected)
     if err == sql.ErrNoRows {
         return false, restriction{}, nil
     } else if err != nil {
@@ -260,7 +248,9 @@ func queryBan(affected string) (bool, restriction, error) {
 
 func issueBan(iss string, exp time.Time, affected string, r string, msg string, ce bool) error {
     if ce {
-        if b, _ := checkIsBanned(affected); b {
+        if b, err := checkIsBanned(affected); err != nil {
+            return err
+        } else if b {
             return ErrAlreadyBanned
         }
     }
@@ -272,26 +262,38 @@ func issueBan(iss string, exp time.Time, affected string, r string, msg string, 
     return nil
 }
 
-func pardonBanId(id int) error {
-    if _, err := db.Exec(SQL_BAN_PARDON_ID, id); err != nil {
+func pardonBanId(banid int) error {
+    if _, err := db.Exec(SQL_BAN_PARDON_BY_ID, banid); err != nil {
         return err
     }
     return nil
 }
 
-func registerUser(username string, password string) error {
-    if _, err := db.Exec(SQL_USER_REGISTER, username, password); err != nil {
+func registerUser(username string, password string, fsid string) error {
+    if _, err := db.Exec(SQL_USER_REGISTER, username, password, fsid); err != nil {
         return err
     }
     return nil
 }
 
 func verifyUser(username string, password string) (int, error) {
-    var id int
-    if err := db.QueryRow(SQL_USER_VERIFY, username, password).Scan(&id); err != nil {
+    var userid int
+    if err := db.QueryRow(SQL_USER_VERIFY, username, password).Scan(&userid); err != nil {
         return 0, err
     }
-    return id, nil
+    return userid, nil
+}
+
+func getUserDsi(fsid string) (int, string, error) {
+    var userid int
+    var last_login_ip string
+    if err := db.QueryRow(SQL_USER_GET_BY_FSID, fsid).Scan(&userid, &last_login_ip); err == sql.ErrNoRows {
+        return 0, "", ErrNoUser
+    } else if err != nil {
+        return 0, "", err
+    }
+    
+    return userid, last_login_ip, nil
 }
 
 func registerApiToken(userid int) error {

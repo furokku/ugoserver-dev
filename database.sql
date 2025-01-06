@@ -1,24 +1,18 @@
 -- made for PostgreSQL. probably won't work on mysql/sqlite!
 BEGIN;
 CREATE EXTENSION pgcrypto;
-CREATE TABLE flipnotes(
+CREATE TABLE movies(
     id SERIAL PRIMARY KEY,
-    author_id VARCHAR(16) NOT NULL,
+    author_userid INT NOT NULL,
+    author_fsid VARCHAR(16) NOT NULL,
     author_name TEXT NOT NULL,
-    parent_author_id VARCHAR(16) NOT NULL,
-    parent_author_name TEXT NOT NULL,
-    author_filename VARCHAR(24) NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT now(),
-    views INTEGER DEFAULT 0,
-    downloads INTEGER DEFAULT 0,
-    yellow_stars INTEGER DEFAULT 0,
-    green_stars INTEGER DEFAULT 0,
-    red_stars INTEGER DEFAULT 0,
-    blue_stars INTEGER DEFAULT 0,
-    purple_stars INTEGER DEFAULT 0,
+    author_filename VARCHAR(24) UNIQUE NOT NULL,
+    uploaded TIMESTAMPTZ DEFAULT now(),
+    views INT DEFAULT 0,
+    downloads INT DEFAULT 0,
     lock BOOL DEFAULT FALSE,
     deleted BOOL DEFAULT FALSE,
-    channelid INTEGER DEFAULT 0
+    channelid INT DEFAULT 0
 );
 CREATE TABLE auth_whitelist(
     id SERIAL PRIMARY KEY,
@@ -29,7 +23,6 @@ CREATE TABLE bans(
     issuer TEXT NOT NULL,
     issued TIMESTAMPTZ DEFAULT now(),
     expires TIMESTAMPTZ DEFAULT now() + interval '24 hours',
-    reason TEXT DEFAULT 'why not lmao',
     message TEXT DEFAULT 'begone',
     pardon BOOL DEFAULT FALSE,
     affected TEXT NOT NULL
@@ -39,7 +32,8 @@ CREATE TABLE users(
     username TEXT UNIQUE NOT NULL,
     password VARCHAR(60) NOT NULL,
     admin BOOL DEFAULT FALSE,
-    fsid VARCHAR(16) DEFAULT '0000000000000000'
+    fsid VARCHAR(16) DEFAULT '0000000000000000',
+    last_login_ip TEXT DEFAULT 'never logged in before'
 );
 CREATE TABLE apitokens(
     id SERIAL PRIMARY KEY,
@@ -47,4 +41,19 @@ CREATE TABLE apitokens(
     expires TIMESTAMPTZ DEFAULT now() + interval '30 days',
     userid INTEGER NOT NULL
 );
+CREATE TABLE user_star(
+    userid INT NOT NULL,
+    movieid INT NOT NULL,
+    ys INT DEFAULT 0,
+    gs INT DEFAULT 0,
+    rs INT DEFAULT 0,
+    bs INT DEFAULT 0,
+    ps INT DEFAULT 0
+);
+
+CREATE FUNCTION get_movie_stars(memoid INT) RETURNS TABLE (yst BIGINT, gst BIGINT, rst BIGINT, bst BIGINT, pst BIGINT) AS $BODY$
+BEGIN
+    RETURN QUERY SELECT coalesce(sum(ys), 0), coalesce(sum(gs), 0), coalesce(sum(rs), 0), coalesce(sum(bs), 0), coalesce(sum(ps), 0) FROM user_star WHERE user_star.movieid = $1;
+END;
+$BODY$ STABLE LANGUAGE plpgsql;
 COMMIT;

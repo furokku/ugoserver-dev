@@ -10,13 +10,23 @@ import (
 
 // we do not use nas much
 // so this can be garbage
-const NAS_TOKEN string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
+const (
+    NAS_TOKEN string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
+    MELONDS_BSSID string = "00f077777777"
+)
 
-// middleware authorizer
-// short name for convenience
-func a(next http.HandlerFunc) http.HandlerFunc {
+// dsi mode auth middleware
+// check_id false : check for sid after basic authentication
+// check_id true : check for userid after login
+func dsi_am(check_id bool, next http.HandlerFunc) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
-        if err := isSidValid(r.Header.Get("X-Dsi-Sid")); err != nil {
+        sid := r.Header.Get("X-Dsi-Sid")
+        if err := isSidValid(sid); err != nil {
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+        
+        if check_id && !sessions[sid].is_logged_in {
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
@@ -49,12 +59,14 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     case "POST":
 
-        req := AuthPostRequest{
-            mac:      r.Header.Get("X-Dsi-Mac"), //console mac
-            id:       r.Header.Get("X-Dsi-Id"), //fsid
-            ip:       ip,
+        sid := r.Header.Get("X-Dsi-Sid")
+
+        // fill out with initial data
+        req := session{
+            mac:      r.Header.Get("X-Dsi-Mac"),
+            fsid:     r.Header.Get("X-Dsi-Id"),
             auth:     r.Header.Get("X-Dsi-Auth-Response"),
-            sid:      r.Header.Get("X-Dsi-Sid"),
+            sid:      sid,
             ver:      r.Header.Get("X-Ugomemo-Version"),
             username: r.Header.Get("X-Dsi-User-Name"),
             region:   r.Header.Get("X-Dsi-Region"),
@@ -63,35 +75,50 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             birthday: r.Header.Get("X-Birthday"),
             datetime: r.Header.Get("X-Dsi-Datetime"),
             color:    r.Header.Get("X-Dsi-Color"),
+            
+            ip: ip,
+            issued: time.Now(),
         }
+
+        ref := sid[:6] + "_" + req.mac[6:]
 
         if r, err := req.validate(); err != nil {
             // funkster detected
-            ref := req.sid[:6] + "_" + req.mac[6:]
             infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)
             msg := "an error occured. try again later\nreference: " + ref
 
-            if err == ErrIdBan || err == ErrIpBan {
+            if err == ErrFsidBan || err == ErrIpBan {
                 msg = "you have been banned until\n" + r.expires.UTC().Format(time.DateTime) + " UTC"  + "\n\nreason: " + r.message + "\n\nreference: " + ref
             }
 
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
             w.Write(encUTF16LE(msg))
             return
-        } else {
-            sessions[req.sid] = session{
-                fsid: req.id,
-                ip: ip,
-                issued: time.Now(),
-                s2r: req, // store all other information upon authentication
-            }
-
-            // possible to add X-DSi-New/Unread-Notices here
-            // for flashing NEW on inbox button
-            w.Header()["X-DSi-SID"] = []string{req.sid}
-            debuglog.Printf("new session %v : %v\n", req.sid, sessions[req.sid])
         }
-//          log.Println(sessions)
+
+        // possible to add X-DSi-New/Unread-Notices here
+        // for flashing NEW on inbox button
+        w.Header()["X-DSi-SID"] = []string{sid}
+
+        // fun part: figure out if user has registered before
+        // whether logging in from the same ip
+        // and obtain a user id
+        userid, last_login_ip, err := getUserDsi(req.fsid)
+        if err == ErrNoUser {
+            req.is_unregistered = true
+        } else if err != nil {
+            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+            w.Write(encUTF16LE("an error occured. try again later\nreference: " + ref))
+            return
+        }
+
+        req.userid = userid
+        if ip == last_login_ip {
+            req.is_logged_in = true
+        }
+        
+        sessions[sid] = req
+        debuglog.Printf("new session %v : %v\n", sid, sessions[req.sid])
     }
 
     w.WriteHeader(http.StatusOK)
@@ -138,9 +165,8 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
             // change the default AP BSSID, which will give awau
             // the fact that they're using one
 
-            if bssid == "00f077777777" { // 00:F0:77 mac is unassigned. 100% emulator
-                err := issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true)
-                if err == ErrAlreadyBanned {
+            if bssid == MELONDS_BSSID { // 00:F0:77 mac is unassigned. 100% emulator
+                if err := issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator [bssid]", "emulator usage", true); err == ErrAlreadyBanned {
                     infolog.Printf("%v is already banned", ip)
                 } else if err != nil {
                     errorlog.Printf("failed to issue ban for %v: %v", ip, err)
@@ -183,26 +209,32 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte(resp.Encode()))
 }
 
-func (a AuthPostRequest) validate() (restriction, error) {
+func (a session) validate() (restriction, error) {
 
     // empty restriction
     e := restriction{}
 
-    if ok, _ := whitelistQueryFsid(a.id); ok {
+    if ok, err := whitelistQueryFsid(a.fsid); err != nil {
+        return e, err
+    } else if ok {
         return e, nil
     }
 
-    if b, r, _ := queryBan(a.id); b {
-        return r, ErrIdBan
+    if b, r, err := queryBan(a.fsid); err != nil {
+        return e, err
+    } else if b {
+        return r, ErrFsidBan
     }
-    if b, r, _ := queryBan(a.ip); b {
+    if b, r, err := queryBan(a.ip); err != nil {
+        return e, err
+    } else if b {
         return r, ErrIpBan
     }
 
-    if a.mac[5:] != a.id[9:] {
-        return e, ErrAuthMacIdMismatch
+    if a.mac[5:] != a.fsid[9:] {
+        return e, ErrAuthMacFsidMismatch
     }
-    if a.id[9:] == "BF112233" {
+    if a.fsid[9:] == "BF112233" {
         return e, ErrAuthEmulatorId
     }
     if a.mac == "0009BF112233" {

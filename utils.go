@@ -16,7 +16,10 @@ import (
 var (
     utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
     utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
-    chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+)
+
+const (
+    ASCII_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 )
 
 
@@ -31,10 +34,27 @@ func randAsciiString(size int) string {
     // cleaner
     buf := randBytes(size)
     for i, v := range buf {
-        buf[i] = chars[int(v) % len(chars)]
+        buf[i] = ASCII_CHARS[int(v) % len(ASCII_CHARS)]
     }
     
     return string(buf)
+}
+
+// quick base64 + utf16le encode
+func q(s string) string {
+    return base64.StdEncoding.EncodeToString(encUTF16LE(s))
+}
+
+func qd(s string) string {
+    bytes := make([]byte, base64.StdEncoding.DecodedLen(len(s)))
+
+    _, err := base64.StdEncoding.Decode(bytes, []byte(s))
+    if err != nil {
+        warnlog.Printf("failed to decode string %s with error %v", s, err)
+        return ""
+    }
+
+    return string(decUTF16LE(bytes))
 }
 
 // nas response uses base64 with * and -
@@ -113,24 +133,6 @@ func decUTF16LE(data []byte) []byte {
     return decoded
 }
 
-func decReqUsername(username string) string {
-    bytes := make([]byte, base64.StdEncoding.DecodedLen(len(username)))
-
-    _, err := base64.StdEncoding.Decode(bytes, []byte(username))
-    if err != nil {
-        warnlog.Printf("failed to decode string %v with error %v", username, err)
-        return ""
-    }
-
-    decoded, err := utf16d.Bytes(bytes)
-    if err != nil {
-        warnlog.Printf("failed to decode utf16 from %v: %v", username, err)
-        return ""
-    }
-
-    return string(decoded)
-}
-
 // find amount of pages possible
 // based on total amount of flipnotes
 // in the result
@@ -141,11 +143,6 @@ func countPages(t int) int {
     }
 
     return pages
-}
-
-// find offset for sql query based on current page
-func findOffset(p int) int {
-    return (p - 1) * 50
 }
 
 func editCountPad(count uint16) string {
@@ -175,11 +172,6 @@ func btoi(b bool) int {
     return 0
 }
 
-func q(s string) string {
-    //quick base64 + utf16le
-    return base64.StdEncoding.EncodeToString(encUTF16LE(s))
-}
-
 func age(s string) int {
     t, err := time.Parse("20060102", s)
     if err != nil {
@@ -191,7 +183,7 @@ func age(s string) int {
 
 func (f flipnote) TMB() (tmb, error) {
     buf := make([]byte, 0x6A0)
-    path := fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, f.id)
+    path := fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, f.id)
 
     file, err := os.Open(path)
     if err != nil {
@@ -205,17 +197,4 @@ func (f flipnote) TMB() (tmb, error) {
     }
 
     return buf, nil
-}
-
-// return whether a flipnote is locked
-// 0 if not, 1 if it is
-//not necessary anymore
-func (t tmb) flipnoteIsLocked() int {
-    l := int( t[0x10] )
-
-    if l != 0 && l != 1 {
-        warnlog.Printf("invalid lock state")
-        return 0
-    }
-    return l
 }

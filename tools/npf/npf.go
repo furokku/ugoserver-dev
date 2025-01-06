@@ -3,30 +3,27 @@ package npf
 import (
 	"image"
 	"image/color"
-	_ "image/png"
 
+	"errors"
 	"fmt"
-	"os"
 	"slices"
 
 	"encoding/binary"
 )
 
-const magic string = "UGAR"
-var colors = make(map[color.Color]int, 15)
-var im []int
-var out []byte
+const (
+    magic string = "UGAR"
+)
 
-func nmain() {
-    fi, err := os.Open(os.Args[1])
-    if err != nil {
-        panic(err)
-    }
+var (
+    ErrTooManyColors = errors.New("image has more than 15 colors! (excluding transparency)")
+    ErrNoColor = errors.New("color does not exist in map!")
+)
 
-    img, _, err := image.Decode(fi)
-    if err != nil {
-        panic(err)
-    }
+func ToNpf(img image.Image) ([]byte, error) {
+    var im []int
+    var out []byte
+    colors := make(map[color.Color]int, 15)
 
     for y:=0; y < img.Bounds().Max.Y; y++ {
         for x:=0; x < roundToPower(img.Bounds().Max.X); x++ {
@@ -45,7 +42,7 @@ func nmain() {
                 im = append(im, colors[c])
             }
             if colors[c] > 15 {
-                panic("more than 15 colors in image")
+                return nil, ErrTooManyColors
             }
             fmt.Printf("x=%d y=%d index=%d color=%d %d %d %d\n", x, y, colors[c], r, g, b, a)
         }
@@ -62,7 +59,7 @@ func nmain() {
     for i:=1; i <= len(colors); i++ {
         c, ok := mapkey(colors, i)
         if !ok {
-            panic("color does not exist in map")
+            return nil, ErrNoColor
         }
         r, g, b, _ := c.RGBA()
 
@@ -85,7 +82,7 @@ func nmain() {
         out = append(out, b)
     }
 
-    os.WriteFile(os.Args[2], out, 0644)
+    return out, nil
 }
 
 func roundToPower(i int) int {

@@ -1,37 +1,31 @@
 package ntft
 
 import (
-	"encoding/binary"
-	"fmt"
 	"image"
-	_ "image/png"
-	"os"
+
+	"errors"
+	"fmt"
+
+	"encoding/binary"
 )
 
-var next uint16
-var bytes []byte
+var (
+    ErrInvalidSize = errors.New("wrong input size! image must be 32x32")
+)
 
-func nmain() {
+func ToNtft(img image.Image) ([]byte, error) {
 
-    fi, err := os.Open(os.Args[1])
-    if err != nil {
-        panic(err)
-    }
+    var next uint16
+    var bytes []byte
 
-    decoded, _, err := image.Decode(fi)
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Println(decoded.Bounds().Max.X, decoded.Bounds().Max.Y)
-    if decoded.Bounds().Max.X != 32 || decoded.Bounds().Max.Y != 32 {
-        fmt.Println("wrong input size")
-        os.Exit(1)
+    fmt.Println(img.Bounds().Max.X, img.Bounds().Max.Y)
+    if img.Bounds().Max.X != 32 || img.Bounds().Max.Y != 32 {
+        return nil, ErrInvalidSize
     }
 
     for y:=0;y<32;y++ {
         for x:=0;x<32;x++ {
-            r, g, b, a := decoded.At(x, y).RGBA()
+            r, g, b, a := img.At(x, y).RGBA()
 
             nr := r & 0xFF * 0x1F / 0xFF
             ng := g & 0xFF * 0x1F / 0xFF
@@ -44,5 +38,5 @@ func nmain() {
         }
     }
 
-    os.WriteFile(os.Args[2], bytes, 0644)
+    return bytes, nil
 }

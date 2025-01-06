@@ -128,28 +128,30 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv)
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(a(loadedUgos["index"].ugoHandle()))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{file}.htm").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request){w.WriteHeader(http.StatusNotImplemented)})
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(dsi_am(false, loadedUgos["index"].ugoHandle()))
 
     // return a built ugo file with flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(a(serveFrontPage))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(false, serveFrontPage))
 
     // uploading
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(a(postFlipnote))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(true, postFlipnote))
 
     // related to fetching flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(a(movieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:ppm|htm|info|dl|delete)}").Methods("GET", "POST").HandlerFunc(dsi_am(false, movieHandler))
     // stars
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star").Methods("POST").HandlerFunc(a(starMovieHandler))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{id}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(a(starMovieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
 
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+    
+    // debug menu for testing features / quick access
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/debug.htm").Methods("GET").HandlerFunc(dsi_am(false, debug))
 
-    h.Path("/ds/imagetest.htm").HandlerFunc(a(misc))
-    h.Path("/ds/postreplytest.htm").HandlerFunc(a(misc))
-    h.Path("/ds/test.reply").Methods("POST").HandlerFunc(a(misc))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(a(jump))
+    h.Path("/ds/imagetest.htm").HandlerFunc(dsi_am(false, misc))
+    h.Path("/ds/postreplytest.htm").HandlerFunc(dsi_am(false, misc))
+    h.Path("/ds/test.reply").Methods("POST").HandlerFunc(dsi_am(false, misc))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(dsi_am(false, jump))
 
     h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))

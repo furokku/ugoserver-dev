@@ -22,18 +22,18 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
 
-    idn, err := strconv.Atoi(vars["id"])
+    id, err := strconv.Atoi(vars["movieid"])
     if err != nil {
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     ext := vars["ext"]
 
-    path := fmt.Sprintf("/ds/%s/movie/%d", vars["reg"], idn)
+    path := fmt.Sprintf("/ds/%s/movie/%d", vars["reg"], id)
 
     switch ext {
     case "dl":
-        err := updateViewDlCount(idn, ext)
+        err := updateViewDlCount(id, ext)
         if err != nil {
             errorlog.Printf("failed to update %v count: %v", ext, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -43,9 +43,9 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "delete":
-        err := deleteMovie(idn)
+        err := deleteMovie(id)
         if err != nil {
-            errorlog.Printf("failed to delete %v: %v", idn, err)
+            errorlog.Printf("failed to delete %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -53,13 +53,13 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "ppm":
-        data, err := os.ReadFile(fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, idn))
+        data, err := os.ReadFile(fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, id))
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
         }
 
-        err = updateViewDlCount(idn, ext)
+        err = updateViewDlCount(id, ext)
         if err != nil {
             errorlog.Printf("failed to update %v count: %v", ext, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -70,20 +70,15 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        fi, err := os.Stat(fmt.Sprintf("%s/flipnotes/%d.ppm", cnf.StoreDir, idn))
-
+        // make it return a 404 if not found
+        movie, err := getMovieSingle(id)
         if err != nil {
-            w.WriteHeader(http.StatusNotFound)
-            return
-        }
-        flip, err := getMovieById(idn)
-        if err != nil {
-            errorlog.Printf("could not get flipnote %v: %v", idn, err)
+            errorlog.Printf("could not get flipnote %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
 
-        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow<span class=\"star0\">%d</span><br>green<span class=\"star1\">%d</span><br>red<span class=\"star2\">%d</span><br>blue<span class=\"star3\">%d</span><br>purple<span class=\"star4\">%d</span><br><br>debug:<br>file: %v<br>size: %d<br>modified: %s</p></body></html>", cnf.URL+path+".ppm", cnf.URL+path+".ppm", cnf.URL+path+".star",cnf.URL+path+".star/green,99",cnf.URL+path+".star/red,99",cnf.URL+path+".star/blue,99",cnf.URL+path+".star/purple,99", cnf.URL+path+".delete", flip.stars["yellow"], flip.stars["green"], flip.stars["red"], flip.stars["blue"], flip.stars["purple"], idn, fi.Size(), fi.ModTime())))
+        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow <span class=\"star0\">%d</span><br>green <span class=\"star1\">%d</span><br>red <span class=\"star2\">%d</span><br>blue <span class=\"star3\">%d</span><br>purple <span class=\"star4\">%d</span><br><br>debug:<br>id: %v</p></body></html>", cnf.URL+path+".ppm", cnf.URL+path+".ppm", cnf.URL+path+".star",cnf.URL+path+".star/green,99",cnf.URL+path+".star/red,99",cnf.URL+path+".star/blue,99",cnf.URL+path+".star/purple,99", cnf.URL+path+".delete", movie.ys, movie.gs, movie.rs, movie.bs, movie.ps, id)))
         return
 
     case "info":
@@ -99,15 +94,16 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
 // add stars to flipnote
 func starMovieHandler(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
-    id, err := strconv.Atoi(vars["id"])
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    id, err := strconv.Atoi(vars["movieid"])
     if err != nil {
-        errorlog.Printf("bad id when adding star: %v", err)
+        errorlog.Printf("bad movieid when adding star: %v", err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     count, err := strconv.Atoi(r.Header.Get("X-Hatena-Star-Count"))
     if err != nil {
-        errorlog.Printf("bad star count: %v", err)
+        errorlog.Printf("bad star count from %d: %v", s.userid, err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
@@ -116,17 +112,11 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
         color = "yellow"
     }
     
-    // future use to update user starred memos
-    fsid := sessions[r.Header.Get("X-Dsi-Sid")].fsid
-
-    if err := updateMovieStars(id, color, count); err != nil {
-        errorlog.Printf("failed to update star count for %v (%v): %v", id, fsid, err)
+    if err := updateMovieStars(s.userid, id, color, count); err != nil {
+        errorlog.Printf("failed to update star count for %d (user %d): %v", id, s.userid, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
-
-    //TODO: add to user's starred flipnotes
-    //err = updateUserStarredMovies(id, fsid)
 }
 
 // Handler for building ugomenus for the front page
@@ -166,7 +156,6 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     }
 
     for _, f := range flipnotes {
-        fmt.Println(f)
 //      lock := btoi(f.lock)
         tempTmb, err := f.TMB()
         if err != nil {
@@ -174,7 +163,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.stars["yellow"], 765, 573, 0)
+        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.ys+f.gs+f.rs+f.bs+f.ps, 765, 573, 0)
 
         base.EmbedBytes = append(base.EmbedBytes, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
@@ -227,7 +216,7 @@ func handleEulaTsv(w http.ResponseWriter, r *http.Request) {
 func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
     // validation is done by middleware
-    sess := sessions[r.Header.Get("X-Dsi-Sid")]
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
 
     ppmBody, err := io.ReadAll(r.Body)
     if err != nil {
@@ -236,18 +225,16 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    aid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x5E : 0x66])))
-    an := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56]))
-    paid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x56 : 0x5E])))
-    pan := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x2A : 0x40]))
+    fsid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x5E : 0x66])))
+    name := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56]))
     l := int(ppmBody[0x10])
-    afn := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
+    fn := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
                 string(ppmBody[0x7B : 0x88]) + "_" +
                 editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
-    id, err := addMovie(aid, an, paid, pan, afn, l)
+    id, err := addMovie(s.userid, fsid, name, fn, l)
     if err == ErrMovieExists {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
@@ -260,7 +247,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
 
 //  fmt.Println(id)
 
-    fp, err := os.OpenFile(cnf.StoreDir + "/flipnotes/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(cnf.StoreDir + "/movies/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // >> store by id to not allow filename clashes
         // this is kinda stupid because filenames allow to identify
@@ -281,7 +268,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    infolog.Printf("%v (%v) uploaded flipnote %v", sess.username, sess.fsid, afn)
+    infolog.Printf("%v (%v) uploaded flipnote %v", qd(s.username), s.fsid, fn)
     w.WriteHeader(http.StatusOK)
 }
 
@@ -320,12 +307,19 @@ func jump(w http.ResponseWriter, r *http.Request) {
     w.Write(encUTF16LE("bazinga"))
 }
 
+func debug(w http.ResponseWriter, r *http.Request) {
+    sid := r.Header.Get("X-Dsi-Sid")
+    s := sessions[sid]
+
+    w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t</body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
+}
+
 
 func cmd(r string) string {
     args := strings.Split(r, " ")
 
     switch args[0] {
-    case "ban":
+    case "test":
         if len(args) < 5 {
             return fmt.Sprintf("expected 5 arguments; got %d: %v", len(args), args)
         }
