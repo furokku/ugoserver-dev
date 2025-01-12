@@ -26,7 +26,7 @@ const (
     SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE fsid = $1"
     SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE fsid = $1) AS \"EXISTS\""
     
-    SQL_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
+    SQL_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
     SQL_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
     SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
     SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
@@ -157,7 +157,6 @@ func updateMovieStars(userid int, movieid int, color string, count int) error {
         q = SQL_MOVIE_UPDATE_USER_STAR_PURPLE
     }
 
-    // first update the flipnote
     if _, err := db.Exec(q, userid, movieid, count); err != nil {
         return err
     }

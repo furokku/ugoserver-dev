@@ -12,7 +12,7 @@ type (
     session struct {
         mac      string
         fsid     string
-        auth     string
+        auth     string // xor stuff
         sid      string
         ver      string
         username string
@@ -20,10 +20,10 @@ type (
         lang     string
         country  string
         birthday string
-        datetime string // ds supplied date/time. use this?
+        datetime string // ds supplied date/time
         color    string
 
-        ip     string // current ip
+        ip     string
         issued time.Time
 
         is_unregistered bool

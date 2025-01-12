@@ -11,7 +11,7 @@ import (
 )
 
 // npf: ugomemo image format for html pages with 15 colors + transparency
-// image width MUST be padded to the nearest ^2, ie 50px -> 64px
+// image width MUST be padded to the nearest 2^x, ie 50px -> 64px
 // this library uses an edge padding method where the edge's color is taken and used
 // as filler. the regular image width must then be provided to the dsi, not the padded one
 // this image format does not have any dimension information, so it must
@@ -33,7 +33,7 @@ func ToNpf(img image.Image) ([]byte, error) {
         for x:=0; x < round(xm); x++ {
             c := img.At(x, y)
             if x >= xm {
-                c = img.At(xm, y)
+                c = img.At(xm-1, y)
             }
             _,_,_,a := c.RGBA()
             _, ok := colors[c]
@@ -67,7 +67,7 @@ func ToNpf(img image.Image) ([]byte, error) {
         if !ok {
             return nil, ErrNoColor
         }
-        out = binary.LittleEndian.AppendUint16(out, packargb(c, false))
+        out = binary.LittleEndian.AppendUint16(out, packabgr(c, false))
     }
     if l := 15-len(colors); l > 0 {
         for i:=0; i < l; i++ {
@@ -97,18 +97,21 @@ func EncodeNpf(w io.Writer, m image.Image) error {
 
 
 // nbf: ugomemo image format, used mainly for top screen backgrounds in html/ugomenus
-// for this reason, assumed to always be 256x192. can be other sizes, but unsupported here
+// similar to npf
+// apparently should always be 256x192, but idk, so other sizes are supported
 // Has no support for transparency, 256 colors
 func ToNbf(img image.Image) ([]byte, error) {
     var im []int
     var out []byte
     colors := make(map[color.Color]int, 15)
+    
+    xm := img.Bounds().Max.X
 
-    for y:=0; y<192; y++ {
-        for x:=0; x<256; x++ {
+    for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+        for x := img.Bounds().Min.X; x < round(xm); x++ {
             c := img.At(x, y)
-            if x >= img.Bounds().Max.X {
-                c = img.At(img.Bounds().Max.X-1, y)
+            if x >= xm {
+                c = img.At(xm-1, y)
             }
             _,_,_,a := c.RGBA()
             _, ok := colors[c]
@@ -121,11 +124,11 @@ func ToNbf(img image.Image) ([]byte, error) {
                 colors[c] = len(colors)+1
             }
 
-            im = append(im, colors[c])
-
             if colors[c] > 256 {
                 return nil, ErrNbfTooManyColors
             }
+
+            im = append(im, colors[c])
 //          fmt.Printf("x=%d y=%d index=%d color=%d %d %d %d\n", x, y, colors[c], r, g, b, a)
         }
     }
@@ -142,7 +145,7 @@ func ToNbf(img image.Image) ([]byte, error) {
         if !ok {
             return nil, ErrNoColor
         }
-        out = binary.LittleEndian.AppendUint16(out, packargb(c, false))
+        out = binary.LittleEndian.AppendUint16(out, packabgr(c, false))
     }
     if l := 256-len(colors); l > 0 {
         for i:=0; i < l; i++ {
@@ -184,14 +187,15 @@ func ToNtft(img image.Image) ([]byte, error) {
     // Format is simple, just a bunch of abgr1555 bytes one after another
     // No header or dimension information, no limit on colors either
     xm := img.Bounds().Max.X
-    for y:=0; y < img.Bounds().Max.Y; y++ {
-        for x:=0; x < round(xm); x++ {
+    for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+        for x := img.Bounds().Min.X; x < round(xm); x++ {
             c := img.At(x, y)
-            if x > xm {
-                c = img.At(xm, y)
+
+            if x >= xm {
+                c = img.At(xm-1, y)
             }
 
-            bytes = binary.LittleEndian.AppendUint16(bytes, packargb(c, true))
+            bytes = binary.LittleEndian.AppendUint16(bytes, packabgr(c, true))
         }
     }
 

@@ -154,6 +154,7 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/success.htm").Methods("GET").HandlerFunc(dsi_am(true, sa_success))
 
     h.Path("/ds/imagetest.htm").HandlerFunc(dsi_am(false, misc))
+    h.Path("/ds/car.htm").HandlerFunc(dsi_am(false, misc))
     h.Path("/ds/postreplytest.htm").HandlerFunc(dsi_am(false, misc))
     h.Path("/ds/test.reply").Methods("POST").HandlerFunc(dsi_am(false, misc))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(dsi_am(false, jump))
@@ -162,6 +163,7 @@ func main() {
     h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
 
     h.PathPrefix("/images").HandlerFunc(static)
+    h.PathPrefix("/css").HandlerFunc(static)
     
     h.PathPrefix("/api/v1").HandlerFunc(api)
     h.PathPrefix("/api/manage").HandlerFunc(mgmt)

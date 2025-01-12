@@ -8,7 +8,6 @@ import (
 
 const (
     magic string = "UGAR"
-    cm uint8 = (1<<8-1) / (1<<5-1) // conversion magic 5bit to 8bit
 )
 
 var (
@@ -18,9 +17,25 @@ var (
     ErrNbfTransparent = errors.New("nbf may not have transparent pixels")
     ErrNtftInvalidSize = errors.New("ntft cannot be larger than 128x128")
     ErrNbfInvalidSize = errors.New("nbf must be 256x192")
+
+    // ppm colors
+	black = color.NRGBA{ R: 0x0e, G: 0x0e, B: 0x0e, A: 0xff }
+	white = color.NRGBA{ R: 0xff, G: 0xff, B: 0xff, A: 0xff }
+	red = color.NRGBA{ R: 0xff, G: 0x2a, B: 0x2a, A: 0xff }
+	blue = color.NRGBA{ R: 0x0a, G: 0x39, B: 0xff, A: 0xff }
 )
 
+// a single animation frame in a ppm
+type frame struct {
+	layer1 [][]uint8
+	layer2 [][]uint8
+	pen1 int
+	pen2 int
+	paper int
+}
 
+
+// round a number up to the nearest 2^x 
 func round(i int) int {
     if !slices.Contains([]int{256, 128, 64, 32, 16, 8, 4, 2, 1}, i) {
         power := 1
@@ -40,25 +55,62 @@ func mapkey(m map[color.Color]int, value int) (color.Color, bool) {
     return nil, false
 }
 
-func packargb(c color.Color, alpha bool) uint16 {
+func packabgr(c color.Color, alpha bool) uint16 {
     r, g, b, a := c.RGBA()
 
-    nr := r & 0xFF * 0x1F / 0xFF
-    ng := g & 0xFF * 0x1F / 0xFF
-    nb := b & 0xFF * 0x1F / 0xFF
-    na := uint32(1)
-    if alpha && a & 0xFF >= 0x80 { na = uint32(1) }
+    na := uint16(1)
+    if alpha && a * 0xFF / 0xFFFF <= 0x80 { na = uint16(0) }
 
-    return uint16((na << 15) | (nb << 10) | (ng << 5) | nr)
+    return (na << 15) | (fast5(b) << 10) | (fast5(g) << 5) | fast5(r)
 }
 
-func unpackargb(c uint16, alpha bool) color.Color {
+func unpackabgr(c uint16, alpha bool) color.NRGBA {
     
-    r := cm * uint8(c & 0x1F)
-    g := cm * uint8(c >> 5 & 0x1F)
-    b := cm * uint8(c >> 10 & 0x1F)
-    a := uint8(c >> 15 & 0x01)
+    a := uint8(c >> 15)
     if alpha && a == 0 { a = 0x00 } else { a = 0xFF }
     
-    return color.RGBA{R: r, G: g, B: b, }
+    return color.NRGBA{
+        R: fast8(c & 0x1F),
+        G: fast8(c >> 5 & 0x1F),
+        B: fast8(c >> 10 & 0x1F),
+        A: a,
+    }
+}
+
+func fast8(s uint16) uint8 {
+    return uint8((s * 527 + 23) >> 6)
+}
+
+func fast5(s uint32) uint16 {
+    return uint16((s * 31745 + 33538048) >> 26)
+}
+
+func framepen(pe int, pa int) (color.NRGBA, color.NRGBA) {
+	var pec, pac color.NRGBA
+	switch pa {
+	case 0:
+		pac = black
+	case 1:
+		pac = white
+	}
+
+	switch pe {
+	case 1:
+		pec = inversepen(pac)
+	case 2:
+		pec = red
+	case 3:
+		pec = blue
+	}
+	
+	return pec, pac
+}
+
+func inversepen(in color.NRGBA) color.NRGBA {
+	// pen color 1 is the inverse of the paper color
+	if in == black {
+		return white
+	} else {
+		return black
+	}
 }

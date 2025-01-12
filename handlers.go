@@ -289,6 +289,8 @@ func misc(w http.ResponseWriter, r *http.Request) {
     case "/ds/test.reply":
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("baka"))
+    case "/ds/car.htm":
+        w.Write([]byte("<html><head></head><body><img src=\""+cnf.URL+"/images/ds/chr.ntft\" width=\"50\" height=\"50\"></body</html>"))
     }
 }
 
@@ -311,5 +313,5 @@ func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
 
-    w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.htm\">log in</a></body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
+    w.Write([]byte(fmt.Sprintf("<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\""+cnf.URL+"/css/ds/basic.css\"><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.htm\">log in</a><br><a href=\""+cnf.URL+"/ds/car.htm\">click this</a></body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
 }
