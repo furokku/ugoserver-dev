@@ -1,5 +1,26 @@
 package main
 
+// ugoserver: a flipnote hatena server with bundled image library
+// Usage: accepts one argument in the form of a path to a json config file
+//        ./ugoserver [/path/to/config]
+// database: postgresql, must be compiled with openssl for pgcrypto!
+// ipc: thru a unix socket connection. TBD
+//
+// some guidelines to stick to:
+// never trust the user;
+// make sure that the client receives as few non-200 responses as possible
+// (preferably zero), as this makes flipnote studio behave strangely;
+//
+// TODO:
+// 1. figure out a way to make html templates work
+// |_ this one is kinda hard because all pages will need something else
+// |_ depending on various factors. For example don't add the star button
+// |_ when viewing a flipnote if the user isn't logged in
+// |_ Will probably make my own html template function specifically for
+// |_ flipnote-related html pages
+// 2. clean up manually written urls and replace with ub()
+// 3. user-friendly register/login pages etc.
+
 import (
 	"database/sql"
 
@@ -149,6 +170,8 @@ func main() {
     // debug menu for testing features / quick access
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/debug.htm").Methods("GET").HandlerFunc(dsi_am(false, debug))
 
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.htm}").Methods("GET").HandlerFunc(dsi_am(false, sa_reg))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.kbd}").Methods("GET").HandlerFunc(dsi_am(false, sa_reg_kbd))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.htm").Methods("GET").HandlerFunc(dsi_am(false, sa_login))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.kbd").Methods("POST").HandlerFunc(dsi_am(false, sa_login_kbd))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/success.htm").Methods("GET").HandlerFunc(dsi_am(true, sa_success))

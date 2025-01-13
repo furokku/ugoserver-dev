@@ -31,7 +31,7 @@ const (
     SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
     SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
-    SQL_USER_REGISTER string = "INSERT INTO users (username, password, fsid) VALUES ($1, crypt($2, gen_salt('bf')), fsid) RETURNING (id)"
+    SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ('soon(tm)', crypt($1, gen_salt('bf')), $2, $3) RETURNING (id)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
     SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password)) AS \"EXISTS\""
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
@@ -268,9 +268,10 @@ func pardonBanId(banid int) error {
     return nil
 }
 
-func registerUser(username string, password string, fsid string) (int, error) {
+// todo: email or something
+func registerUserDsi(password string, fsid string, ip string) (int, error) {
     var userid int
-    if err := db.QueryRow(SQL_USER_REGISTER, username, password, fsid).Scan(&userid); err != nil {
+    if err := db.QueryRow(SQL_USER_REGISTER_DSI, password, fsid, ip).Scan(&userid); err != nil {
         return 0, err
     }
     return userid, nil

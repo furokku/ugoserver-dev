@@ -8,5 +8,3 @@ dnsmasq.conf
 
 bin/
 go.sum
-
-static/images/ds/*

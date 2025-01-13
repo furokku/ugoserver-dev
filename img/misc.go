@@ -1,4 +1,4 @@
-package ugoimg
+package img
 
 import (
 	"errors"
@@ -7,7 +7,8 @@ import (
 )
 
 const (
-    magic string = "UGAR"
+    image_magic string = "UGAR"
+    animation_magic string = "PARA"
 )
 
 var (
@@ -17,6 +18,8 @@ var (
     ErrNbfTransparent = errors.New("nbf may not have transparent pixels")
     ErrNtftInvalidSize = errors.New("ntft cannot be larger than 128x128")
     ErrNbfInvalidSize = errors.New("nbf must be 256x192")
+    ErrNotPpm = errors.New("data is missing ppm file magic. not a ppm")
+    ErrOffsetBeyondData = errors.New("frame offset is beyond possible limits")
 
     // ppm colors
 	black = color.NRGBA{ R: 0x0e, G: 0x0e, B: 0x0e, A: 0xff }
@@ -77,10 +80,12 @@ func unpackabgr(c uint16, alpha bool) color.NRGBA {
     }
 }
 
+// 5 bits -> 8 bits
 func fast8(s uint16) uint8 {
     return uint8((s * 527 + 23) >> 6)
 }
 
+// 16 bits -> 5 bits
 func fast5(s uint32) uint16 {
     return uint16((s * 31745 + 33538048) >> 26)
 }

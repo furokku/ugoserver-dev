@@ -198,3 +198,10 @@ func (f flipnote) TMB() (tmb, error) {
 
     return buf, nil
 }
+
+// url builder
+// takes in region and whatever you want after /ds/v2-xx/
+// and spits out ready to use url
+func ub(reg string, p string) string {
+    return cnf.URL + "/ds/v2-" + reg + "/" + p
+}

@@ -1,4 +1,6 @@
-package ugoimg
+package img
+
+// decode.go: decode ntft images, ppm animations
 
 import (
 	"encoding/binary"
@@ -50,7 +52,15 @@ func DecodeNtft(r io.Reader, w, h int) (image.Image, error) {
 // key SHA256 (pem format): 87f45ee349077c27538a3c44f4347f5153e9b1554b29a3b3957f91afdb084d47
 //
 // this decoder returns a list of image.Images with each frame
-func FromPpm(ppm []byte) []image.Image {
+func FromPpm(ppm []byte) ([]image.Image, error) {
+	// read header
+	fm := string(ppm[0x0 : 0x4]) // read file magic
+	if fm != animation_magic {
+		return nil, ErrNotPpm
+	}
+	as := binary.LittleEndian.Uint32(ppm[0x4 : 0x7+1]) // animation data size
+	fn := int(binary.LittleEndian.Uint16(ppm[0xc : 0xd+1])) + 1 // # of frames
+
 	// read animation header
 	//
 	// frame offset table size, 4 bytes for each offset as this is uint32
@@ -68,7 +78,6 @@ func FromPpm(ppm []byte) []image.Image {
 	hide2 := ahf >> 5 & 0x1 // hide layer 2 if 1
 	//ah7 := ahf >> 6 & 0x1 // always set
 	
-	fn := int(fots / 4) // # of frames
 	//fmt.Printf("reading %d frames\n", fn)
 	
 	offsets := make([]uint32, fn)
@@ -78,6 +87,9 @@ func FromPpm(ppm []byte) []image.Image {
 	// offsets are relative to the start of the animation data
 	for i:=0; i<fn; i++ {
 		o := binary.LittleEndian.Uint32(ppm[0x6a8+i*4 : 0x6a8+i*4+4])
+		if o > as {
+			return nil, ErrOffsetBeyondData
+		}
 		offsets[i] = o
 		//fmt.Printf("found offset %08x for frame %d\n", o, i)
 	}
@@ -215,6 +227,7 @@ func FromPpm(ppm []byte) []image.Image {
 		
 		// if the flag is set in the frame header, the frame uses frame diffing
 		// so it needs to be XORed over the previous frame on both layers
+		// this has NOT been tested yet, so if you get garbage output, start from here
 		if fd == 0x0 {
 			//fmt.Printf("frame=%d diffing\n", n)
 			for y:=0;y<192;y++ {
@@ -276,5 +289,5 @@ func FromPpm(ppm []byte) []image.Image {
 		m[n] = this.SubImage(this.Bounds())
 	}
 	
-	return m
+	return m, nil
 }

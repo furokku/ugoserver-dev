@@ -1,6 +1,6 @@
-package ugoimg
+package img
 
-// nxx_e.go: encoding nbf/npf/ntft images
+// encode.go: encoding nbf/npf/ntft images
 
 import (
 	"image"
@@ -55,7 +55,7 @@ func ToNpf(img image.Image) ([]byte, error) {
     }
 //  fmt.Println(im)
 
-    out = append(out, magic...)
+    out = append(out, image_magic...)
     out = binary.LittleEndian.AppendUint32(out, 2) // # of sections
     out = binary.LittleEndian.AppendUint32(out, 32) // palette section length
     out = binary.LittleEndian.AppendUint32(out, uint32(len(im)/2))
@@ -134,7 +134,7 @@ func ToNbf(img image.Image) ([]byte, error) {
     }
 //  fmt.Println(im)
 
-    out = append(out, magic...)
+    out = append(out, image_magic...)
     out = binary.LittleEndian.AppendUint32(out, 2) // # of sections
     out = binary.LittleEndian.AppendUint32(out, 512) // palette section length
     out = binary.LittleEndian.AppendUint32(out, uint32(len(im)/2))
