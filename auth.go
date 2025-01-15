@@ -15,6 +15,8 @@ const (
     // so this can be garbage
     NAS_TOKEN string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
     MELONDS_BSSID string = "00f077777777"
+    MSG_EARLY_ERROR string = "an error occurred during\nearly authentication."
+    MSG_ERROR string = ""
 )
 
 // dsi mode auth middleware
@@ -62,11 +64,23 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     case "POST":
 
         sid := r.Header.Get("X-Dsi-Sid")
+
         region, err := strconv.Atoi(r.Header.Get("X-Dsi-Region"))
         if err != nil {
-            errorlog.Printf("%s tried to authenticate with invalid region (%v)", ip, err)
+            // possible rev2
+            region = 0
+        //    errorlog.Printf("%s tried to authenticate with invalid region (%v)", ip, err)
+        //    w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        //    w.Write(encUTF16LE(MSG_EARLY_ERROR))
+        //    return
+        }
+
+        ver, err := strconv.Atoi(r.Header.Get("X-Ugomemo-Version"))
+        if err != nil {
+            errorlog.Printf("%s tried to authenticate with invalid version (%v)", ip, err)
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            w.Write(encUTF16LE("an error occurred during\nearly authentication.\n\nreport this!"))
+            w.Write(encUTF16LE(MSG_EARLY_ERROR))
+            return
         }
 
         // fill out with initial data
@@ -74,14 +88,14 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             mac:      r.Header.Get("X-Dsi-Mac"),
             fsid:     r.Header.Get("X-Dsi-Id"),
             auth:     r.Header.Get("X-Dsi-Auth-Response"),
-            ver:      r.Header.Get("X-Ugomemo-Version"),
+            ver:      ver,
             username: r.Header.Get("X-Dsi-User-Name"),
-            region:   region,
-            lang:     r.Header.Get("X-Dsi-Lang"),
-            country:  r.Header.Get("X-Dsi-Country"),
+            region:   region, // unset on rev2
+            lang:     r.Header.Get("X-Dsi-Lang"), // unset on rev2
+            country:  r.Header.Get("X-Dsi-Country"), // unset on rev2
             birthday: r.Header.Get("X-Birthday"),
-            datetime: r.Header.Get("X-Dsi-Datetime"),
-            color:    r.Header.Get("X-Dsi-Color"),
+            datetime: r.Header.Get("X-Dsi-Datetime"), // unset on rev2
+            color:    r.Header.Get("X-Dsi-Color"), // unset on rev2
             
             ip: ip,
             issued: time.Now(),
@@ -103,10 +117,6 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        // possible to add X-DSi-New/Unread-Notices here
-        // for flashing NEW on inbox button
-        w.Header()["X-DSi-SID"] = []string{sid}
-
         // fun part: figure out if user has registered before
         // whether logging in from the same ip
         // and obtain a user id
@@ -125,7 +135,12 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         }
         
         sessions[sid] = req
-        debuglog.Printf("new session %v : %v\n", sid, sessions[req.sid])
+        //debuglog.Printf("new session %v : %v\n", sid, sessions[sid])
+
+        // if nothing else failed, set SID header
+        // possible to add X-DSi-New/Unread-Notices here
+        // for flashing NEW on inbox button
+        w.Header()["X-DSi-SID"] = []string{sid}
     }
 
     w.WriteHeader(http.StatusOK)
@@ -220,6 +235,7 @@ func (a session) validate() (restriction, error) {
 
     // empty restriction
     e := restriction{}
+
 
     if ok, err := whitelistQueryFsid(a.fsid); err != nil {
         return e, err
@@ -320,7 +336,7 @@ func sa_login(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"login page\"></head><body>welcome<br>enter your password here:<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.kbd\">keyboard</a></body></html>"))
+    w.Write([]byte(`<html><head><meta name="uppertitle" content="login page"></head><body>welcome<br>enter your password here:<br><br><a href="http://`+cnf.Root+`/ds/v2-`+s.getregion()+`/sa/login.kbd">keyboard</a></body></html>`))
 }
 
 func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
@@ -337,10 +353,10 @@ func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
     if v, err := verifyUserDsi(s.userid, in); err != nil {
         // handle error
         errorlog.Printf("while verifying user %d, %v", s.userid, err)
-        w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=error"}
+        w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=error"}
         return
     } else if !v {
-        w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=invalid"}
+        w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=invalid"}
         return
     }
 
@@ -353,7 +369,7 @@ func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
     s.is_logged_in = true
     sessions[sid] = s
 
-    w.Header()["X-DSi-Forwarder"] = []string{cnf.URL + "/ds/v2-" + s.getregion() + "/sa/success.htm"}
+    w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/success.htm"}
     w.WriteHeader(http.StatusOK)
 }
 
@@ -379,7 +395,7 @@ func sa_reg(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    w.Write([]byte("<html><head><meta rel=\"stylesheet\" href=\"" + cnf.URL + "/css/ds/basic.css\"><meta name=\"uppertitle\" content=\"registration\"></head><body>welcome!<br>since you don't have a user account yet, you need to register<br><a href=\"" + cnf.URL + "/ds/v2-" + s.getregion() + "/sa/register.kbd\">click here to register</a></body></html>"))
+    w.Write([]byte(`"<html><head><meta rel="stylesheet" href="http://` + cnf.Root + `/css/ds/basic.css"><meta name="uppertitle" content="registration"></head><body>welcome!<br>since you don't have a user account yet, you need to register<br><a href="http://` + cnf.Root + `/ds/v2-` + s.getregion() + `/sa/register.kbd">click here to register</a></body></html>`))
 }
 
 func sa_reg_kbd(w http.ResponseWriter, r *http.Request) {

@@ -1,8 +1,8 @@
 {
     "listen": "0.0.0.0",
 
-    "_comment_a": "url that will be used for links in ugomenus. set this correctly!",
-    "url": "http://flipnote.hatena.com",
+    "_comment_a": "domain that will be used for links in ugomenus. set this correctly!",
+    "root": "flipnote.hatena.com",
 
     "_comment_b": "where all of the magic happens",
     "dir": "/srv/hatena",

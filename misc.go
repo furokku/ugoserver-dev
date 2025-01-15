@@ -181,9 +181,9 @@ func age(s string) int {
     return int(time.Since(t).Hours())/8760
 }
 
-func (f flipnote) TMB() (tmb, error) {
+func (f Movie) TMB() (tmb, error) {
     buf := make([]byte, 0x6A0)
-    path := fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, f.id)
+    path := fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, f.ID)
 
     file, err := os.Open(path)
     if err != nil {
@@ -203,5 +203,5 @@ func (f flipnote) TMB() (tmb, error) {
 // takes in region and whatever you want after /ds/v2-xx/
 // and spits out ready to use url
 func ub(reg string, p string) string {
-    return cnf.URL + "/ds/v2-" + reg + "/" + p
+    return "http://" + cnf.Root + "/ds/v2-" + reg + "/" + p
 }

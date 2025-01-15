@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const magic string = "UGAR"
+const MENU_MAGIC string = "UGAR"
 
 // menubc (menu byte convert)
 // helper function to convert arguments into an
@@ -115,8 +115,8 @@ func (u Ugomenu) pack(r string) []byte {
     }
 
     for _, item := range u.Items {
-        url := strings.Replace(item.URL, "xx", r, 1)
-        url = strings.Replace(url, "http://flipnote.hatena.com", cnf.URL, 1)
+        url := strings.Replace(item.URL, "flipnote.hatena.com", cnf.Root, 1)
+        url = strings.Replace(url, "xx", r, 1)
         switch item.Type {
         case "dropdown":
             menus = append(menus, menubc(2, url, q(item.Label), btoi(item.Selected))...)
@@ -146,7 +146,7 @@ func (u Ugomenu) pack(r string) []byte {
         embedded = padBytes(embedded)
     }
 
-    header = []byte(magic)
+    header = []byte(MENU_MAGIC)
     header = binary.LittleEndian.AppendUint32(header, uint32(sections))
     header = binary.LittleEndian.AppendUint32(header, uint32(len(menus)))
     if emb { header = binary.LittleEndian.AppendUint32(header, uint32(len(embedded))) }

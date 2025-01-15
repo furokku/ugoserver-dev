@@ -3,8 +3,12 @@ package main
 // ugoserver: a flipnote hatena server with bundled image library
 // Usage: accepts one argument in the form of a path to a json config file
 //        ./ugoserver [/path/to/config]
-// database: postgresql, must be compiled with openssl for pgcrypto!
+// database: postgresql, must be compiled with openssl for pgcrypto
 // ipc: thru a unix socket connection. TBD
+//
+// support should only be enabled for the latest version of flipnote studio
+// US/EU only had one, but JP had three so only the latest version will work
+// theoretically rev2 works, enable that if you want. see notes.md
 //
 // some guidelines to stick to:
 // never trust the user;
@@ -25,6 +29,7 @@ import (
 	"database/sql"
 
 	"encoding/json"
+	"html/template"
 	"strings"
 
 	"net/http"
@@ -40,9 +45,11 @@ import (
 var (
     db *sql.DB
     cnf = Configuration{}
+
     sessions = make(map[string]session)
-    prettyPageTypes = map[string]string{"recent":"Recent"}
-    loadedUgos = make(map[string]Ugomenu)
+
+    menus = make(map[string]Ugomenu)
+    templates = make(map[string]*template.Template)
 )
 
 const (
@@ -51,51 +58,66 @@ const (
 
 func main() {
 
+    // Load config file
     // Flags are kinda useless because this will always
     // be used with a configuration file
     cf := "config.json" // default file to look for
     if len(os.Args) > 1 {
         cf = os.Args[1]
     }
-
     cbytes, err := os.ReadFile(cf)
     if err != nil {
         errorlog.Fatalf("failed to open config file: %v", err)
     }
-
     json.Unmarshal(cbytes, &cnf)
     if err != nil {
         errorlog.Fatalf("failed to load config file: %v", err)
     }
-    infolog.Printf("read config %s", cf)
-
-    // read ugo directory for static/template ugomenus
-    var nl int
-    ugos, err := os.ReadDir(cnf.Dir + "/ugo")
+    infolog.Printf("loaded config %s", cf)
+    
+    // load html templates
+    rd, err := os.ReadDir(cnf.Dir + "/static/template")
     if err != nil {
-        errorlog.Printf("%v", err)
+        errorlog.Fatalln(err)
     }
-    for _, ugo := range ugos {
-        if ugo.IsDir() { // ignore subdirs
+    for _, tpl := range rd {
+        if tpl.IsDir() {
             continue
         }
-        name := strings.Split(ugo.Name(), ".")[0]
-        bytes, err := os.ReadFile(cnf.Dir + "/ugo/" + ugo.Name())
+        name := strings.Split(tpl.Name(), ".")[0]
+        p, err := template.ParseFiles(cnf.Dir + "/static/template/" + tpl.Name())
         if err != nil {
-            errorlog.Printf("%v", err)
+            errorlog.Printf("%v\n", err)
+            continue
+        }
+        templates[name] = p
+    }
+
+    // load 
+    rd, err = os.ReadDir(cnf.Dir + "/static/menu")
+    if err != nil {
+        errorlog.Fatalln(err)
+    }
+    for _, menu := range rd {
+        if menu.IsDir() { // ignore subdirs
+            continue
+        }
+        name := strings.Split(menu.Name(), ".")[0]
+        bytes, err := os.ReadFile(cnf.Dir + "/static/menu/" + menu.Name())
+        if err != nil {
+            errorlog.Printf("%v\n", err)
             continue
         }
         tu := Ugomenu{}
         err = json.Unmarshal(bytes, &tu)
         if err != nil {
-            errorlog.Printf("error parsing %s: %v", name, err)
+            errorlog.Printf("error loading %s: %v", name, err)
             continue
         }
 
-        loadedUgos[name] = tu
-        nl += 1
+        menus[name] = tu
     }
-    infolog.Printf("ugos loaded: %d", nl)
+    infolog.Printf("%d loaded ugomenus", len(menus))
 
     // prep graceful exit
     sigs := make(chan os.Signal, 1)
@@ -135,26 +157,25 @@ func main() {
     // log requests as they come in, eliminates a bunch of redundant code
     h.Use(loggerMiddleware)
     
-    // TODO: tv-jp
-    // v2-us, v2-eu, v2-jp, v2 auth
-    // maybe v1
+    // rev3 auth
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
     // add regex here instead of an if statement in the function
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula)
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv) // europe stuff
+    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv) // eu
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(dsi_am(false, loadedUgos["index"].ugoHandle()))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(dsi_am(false, menus["index"].ugoHandle()))
 
-    // return a built ugo file with flipnotes
+    // front page
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(false, serveFrontPage))
 
     // uploading
+    // TODO: channels
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(true, postFlipnote))
 
     // related to fetching flipnotes
@@ -164,6 +185,7 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
 
+    // NAS
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
     h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
     
@@ -171,7 +193,7 @@ func main() {
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/debug.htm").Methods("GET").HandlerFunc(dsi_am(false, debug))
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.htm}").Methods("GET").HandlerFunc(dsi_am(false, sa_reg))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.kbd}").Methods("GET").HandlerFunc(dsi_am(false, sa_reg_kbd))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.kbd}").Methods("POST").HandlerFunc(dsi_am(false, sa_reg_kbd))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.htm").Methods("GET").HandlerFunc(dsi_am(false, sa_login))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.kbd").Methods("POST").HandlerFunc(dsi_am(false, sa_login_kbd))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/success.htm").Methods("GET").HandlerFunc(dsi_am(true, sa_success))

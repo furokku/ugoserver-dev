@@ -1,0 +1,25 @@
+{
+    "layout": [0],
+
+    "top": {
+        "url": "http://ds.floc.root.sx/ds/background.nbf",
+
+        "uppertitle": "text",
+        "uppersubleft": "text",
+        "uppersubright": "text",
+        "uppersubtop": "text",
+        "uppersubbottom": "text"
+    },
+
+    "items": [
+        {"type": "dropdown", "url": "http://ds.floc.root.sx/ds/foo.uls", "label": "label", "selected": true},
+
+        {"type": "corner", "url": "http://ds.floc.root.sx/ds/foo.uls", "label": "bla"},
+
+        {"type": "button", "url": "http://ds.floc.root.sx/ds/foo.uls", "icon": 100, "label": "jelqinit", "count": 420, "lock": 1, "unknown1": 0, "unknown2": 0}
+    ],
+
+    "embed": [
+        "/path/to/file.ntft"
+    ]
+}

@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// should be self-explanatory
 type (
+    
+    // Internal types, don't need to be exported
     session struct {
         mac      string
         fsid     string
         auth     string // xor stuff
-        sid      string
-        ver      string
+        ver      int // ugomemo version 0:rev1(jp release) 1:rev2(jp update 1) 2:rev3(us/eu release, jp update 2)
         username string
         region   int // 0:jp 1:us 2:eu
         lang     string
@@ -31,9 +31,35 @@ type (
         userid int
     }
     
+    restriction struct {
+        banid    int
+        issuer   string
+        issued   time.Time
+        expires  time.Time
+        message  string
+        pardon   bool
+        affected string
+    }
+
+    tmb []byte
+
+    ipcListener struct {
+        listener net.Listener
+        quit     chan interface{}
+        wg       sync.WaitGroup
+    }
+
+    rwWrapper struct {
+        http.ResponseWriter
+        status int
+        done   bool
+    }
+
+
+    // Json config
     Configuration struct {
         Listen   string `json:"listen"`
-        URL      string `json:"url"`
+        Root     string `json:"root"`
         Dir      string `json:"dir"`
         StoreDir string `json:"store_dir"`
 
@@ -50,42 +76,37 @@ type (
         Hosts     []string `json:"hosts"`
     }
 
-    flipnote struct {
-        id int
-        author_userid int
-        author_fsid string
-        author_name string
-        author_filename string
-        uploaded time.Time
-        lock bool
-        views int
-        downloads int
-        deleted bool
-        channelid int
-        ys int // stars
-        gs int
-        rs int
-        bs int
-        ps int
+
+    // Must be exported for html templates
+    Movie struct {
+        ID int
+        Au_userid int // author info
+        Au_fsid string
+        Au_name string
+        Au_fn string
+        Posted time.Time
+        Lock bool // This isn't really used
+        Views int
+        Downloads int
+        Deleted bool
+        Channelid int
+        Ys int // stars
+        Gs int
+        Rs int
+        Bs int
+        Ps int
     }
 
-    restriction struct {
-        banid    int
-        issuer   string
-        issued   time.Time
-        expires  time.Time
-        message  string
-        pardon   bool
-        affected string
+    Comment struct {
+        ID int
+        Userid int
+        Is_memo bool
+        Content string
+        Posted time.Time
     }
 
-    tmb []byte
 
-    MenuEntry struct {
-        Type uint
-        Data []string
-    }
-
+    // Json ugomenus
     Ugomenu struct {
         Layout []int `json:"layout"`
         TopScreenContents struct {
@@ -113,15 +134,27 @@ type (
         Unknown2 int `json:"unknown2,omitempty"`
     }
 
-    ipcListener struct {
-        listener net.Listener
-        quit     chan interface{}
-        wg       sync.WaitGroup
-    }
+    
 
-    rwWrapper struct {
-        http.ResponseWriter
-        status int
-        done   bool
+    // html template stuff
+    Page struct {
+        Root string // server domain to use everywhere
+        Title string
+        Region string
+        LoggedIn bool
+    }
+    
+    CommentPage struct {
+        Page
+        Comments []Comment
+        CommentCount int
+        MovieID int
+    }
+    
+    MoviePage struct {
+        Page
+        Movie
+        MovieAuthor bool
+        CommentCount int
     }
 )

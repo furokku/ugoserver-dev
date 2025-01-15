@@ -50,10 +50,23 @@ CREATE TABLE user_star(
     bs INT DEFAULT 0,
     ps INT DEFAULT 0
 );
-
+CREATE TABLE comments(
+    id SERIAL PRIMARY KEY,
+    userid INT NOT NULL,
+    movieid INT NOT NULL,
+    is_memo BOOL DEFAULT TRUE,
+    content TEXT DEFAULT 'hhhhh',
+    posted TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE channels(
+    id SERIAL PRIMARY KEY,
+    desc_s TEXT DEFAULT 'New channel',
+    desc_l TEXT DEFAULT 'Call Luigi?'
+)
 CREATE FUNCTION get_movie_stars(memoid INT) RETURNS TABLE (yst BIGINT, gst BIGINT, rst BIGINT, bst BIGINT, pst BIGINT) AS $BODY$
 BEGIN
     RETURN QUERY SELECT coalesce(sum(ys), 0), coalesce(sum(gs), 0), coalesce(sum(rs), 0), coalesce(sum(bs), 0), coalesce(sum(ps), 0) FROM user_star WHERE user_star.movieid = $1;
 END;
 $BODY$ STABLE LANGUAGE plpgsql;
+CREATE VIEW count_all_movies AS SELECT count(1) FROM movies WHERE deleted = false;
 COMMIT;

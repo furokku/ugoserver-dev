@@ -17,6 +17,10 @@ import (
 	"strings"
 )
 
+var (
+    prettyPageTypes = map[string]string{"recent":"Recent"}
+)
+
 // Not my finest code up there so we're doing this a better way
 func movieHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -28,8 +32,8 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
     ext := vars["ext"]
-
-    path := fmt.Sprintf("/ds/%s/movie/%d", vars["reg"], id)
+    
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
 
     switch ext {
     case "dl":
@@ -66,24 +70,82 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
         w.Write(data)
-//          log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
+        //log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
         return
 
     case "htm":
+        mode := r.URL.Query().Get("mode")
+        cn, err := getMovieCommentsCount(id)
+        if err != nil {
+            errorlog.Printf("could not get comment count for flipnote %d: %v", id, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+
+        // comments
+        if mode == "comment" {
+            pq := r.URL.Query().Get("page")
+            p, err := strconv.Atoi(pq)
+            if pq == "" {
+                // do NOT print error message if the query is empty
+                p = 1
+            } else if err != nil {
+                infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+                w.WriteHeader(http.StatusBadRequest)
+                return
+            }
+            
+            comments, err := getMovieComments(id, p)
+            if err != nil {
+                errorlog.Printf("could not get comments for flipnote %v: %v", id, err)
+                w.WriteHeader(http.StatusInternalServerError)
+                return
+            }
+            
+            if err = templates["comment"].Execute(w, CommentPage{
+                Page: Page{
+                    Root: cnf.Root,
+                    LoggedIn: s.is_logged_in,
+                },
+                Comments: comments,
+                CommentCount: cn,
+                MovieID: id,
+            }); err != nil {
+                errorlog.Printf("while executing template: %v", err)
+                w.WriteHeader(http.StatusInternalServerError)
+                return
+            }
+        }
+
+        // otherwise the overview
         // make it return a 404 if not found
         movie, err := getMovieSingle(id)
-        if err != nil {
+        if err == ErrNoMovie {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        } else if err != nil {
             errorlog.Printf("could not get flipnote %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
 
-        w.Write([]byte(fmt.Sprintf("<html><head><meta name=\"upperlink\" content=\"%s\"><meta name=\"playcontrolbutton\" content=\"1\"><meta name=\"savebutton\" content=\"%s\"><meta name=\"starbutton\" content=\"%s\"><meta name=\"starbutton1\" content=\"%s\"><meta name=\"starbutton2\" content=\"%s\"><meta name=\"starbutton3\" content=\"%s\"><meta name=\"starbutton4\" content=\"%s\"><meta name=\"deletebutton\" content=\"%s\"></head><body><p>wip<br>obviously this would be unfinished<br>yellow <span class=\"star0\">%d</span><br>green <span class=\"star1\">%d</span><br>red <span class=\"star2\">%d</span><br>blue <span class=\"star3\">%d</span><br>purple <span class=\"star4\">%d</span><br><br>debug:<br>id: %v</p></body></html>", cnf.URL+path+".ppm", cnf.URL+path+".ppm", cnf.URL+path+".star",cnf.URL+path+".star/green,99",cnf.URL+path+".star/red,99",cnf.URL+path+".star/blue,99",cnf.URL+path+".star/purple,99", cnf.URL+path+".delete", movie.ys, movie.gs, movie.rs, movie.bs, movie.ps, id)))
-        return
+        if err = templates["movie"].Execute(w, MoviePage{
+            Page: Page{
+                Root: cnf.Root,
+                Region: s.getregion(),
+                LoggedIn: s.is_logged_in,
+            },
+            Movie: movie,
+            MovieAuthor: s.userid == movie.Au_userid,
+            CommentCount: cn,
+        }); err != nil {
+            errorlog.Printf("while executing template: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
 
     case "info":
         w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
-        return
 
     default:
         w.WriteHeader(http.StatusNotFound)
@@ -148,11 +210,11 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
     pm := countPages(total)
 
     // meta
-    base.setTopScreenText("Feed", fmt.Sprintf("Page %d / %d", p, pm), "","","")
-    base.addDropdown(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=1", cnf.URL, pt), prettyPageTypes[pt], true)
+    base.setTopScreenText("Feed", fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d / %d", p, pm), "","")
+    base.addDropdown(fmt.Sprintf("http://%s/ds/v2-xx/feed.uls?mode=%s&page=1", cnf.Root, pt), prettyPageTypes[pt], true)
 
     if p > 1 {
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.URL, pt, p-1), 100, "Previous")
+        base.addButton(fmt.Sprintf("http://%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.Root, pt, p-1), 100, "Previous")
     }
 
     for _, f := range flipnotes {
@@ -163,14 +225,14 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/movie/%d.ppm", cnf.URL, f.id), 3, "", f.ys, 765, 573, 0)
+        base.addButton(fmt.Sprintf("http://%s/ds/v2-xx/movie/%d.ppm", cnf.Root, f.ID), 3, "", f.Ys, 765, 573, 0)
 
         base.EmbedBytes = append(base.EmbedBytes, tempTmb)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
     if pm > p {
-        base.addButton(fmt.Sprintf("%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.URL, pt, p+1), 100, "Next")
+        base.addButton(fmt.Sprintf("http://%s/ds/v2-xx/feed.uls?mode=%s&page=%d", cnf.Root, pt, p+1), 100, "Next")
     }
 
     data := base.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion())
@@ -290,7 +352,7 @@ func misc(w http.ResponseWriter, r *http.Request) {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("baka"))
     case "/ds/car.htm":
-        w.Write([]byte("<html><head></head><body><img src=\""+cnf.URL+"/images/ds/chr.ntft\" width=\"50\" height=\"50\"></body</html>"))
+        w.Write([]byte(`<html><head></head><body><img src="http://`+cnf.Root+`/images/ds/chr.ntft" width="50" height="50"></body</html>`))
     }
 }
 
@@ -313,5 +375,5 @@ func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
 
-    w.Write([]byte(fmt.Sprintf("<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\""+cnf.URL+"/css/ds/basic.css\"><meta name=\"uppertitle\" content=\"debug haha\"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t<br><br><a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/login.htm\">log in</a>   <a href=\""+cnf.URL+"/ds/v2-"+s.getregion()+"/sa/register.htm\">register</a><br><br><a href=\""+cnf.URL+"/ds/car.htm\">click this</a></body></html>", s.sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
+    w.Write([]byte(fmt.Sprintf(`<html><head><link rel="stylesheet" type="text/css" href="http://`+cnf.Root+`/css/ds/basic.css"><meta name="uppertitle" content="debug haha"></head><body>This is debug menu<br>sid: %s<br>fsid: %s<br>ip: %s<br>username: %s<br>session issued: %s<br><br>userid: %d<br>is_unregistered: %t<br>is_logged_in: %t<br><br><a href="http://`+cnf.Root+`/ds/v2-`+s.getregion()+`/sa/login.htm">log in</a>|||<a href="http://`+cnf.Root+`/ds/v2-`+s.getregion()+`/sa/register.htm">register</a><br><br><a href="http://`+cnf.Root+`/ds/car.htm">click this</a></body></html>`, sid, s.fsid, s.ip, qd(s.username), s.issued.String(), s.userid, s.is_unregistered, s.is_logged_in)))
 }
