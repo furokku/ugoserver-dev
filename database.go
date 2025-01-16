@@ -24,7 +24,7 @@ const (
     
     SQL_MOVIE_ADD_COMMENT_MEMO string = "INSERT INTO comments (userid, movieid) VALUES ($1, $2) RETURNING (id)" // only need to imply about its existence
     SQL_MOVIE_ADD_COMMENT_TEXT string = "INSERT INTO comments (userid, movieid, is_memo, content) VALUES ($1, $2, false, $3)"
-    SQL_MOVIE_GET_COMMENT string = "SELECT id, userid, variety, content, posted FROM comments WHERE movieid = $1 ORDER BY posted ASC LIMIT 10 OFFSET ($2-1)*10"
+    SQL_MOVIE_GET_COMMENT string = "SELECT id, userid, username, is_memo, content, posted FROM comments JOIN users ON comments.userid = users.id WHERE movieid = $1 ORDER BY posted DESC LIMIT 10 OFFSET ($2-1)*10"
     SQL_MOVIE_GET_COMMENT_COUNT string = "SELECT count(1) FROM comments WHERE movieid = $1"
     
     SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (fsid) VALUES ($1)"
@@ -36,7 +36,7 @@ const (
     SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
     SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
-    SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ('soon(tm)', crypt($1, gen_salt('bf')), $2, $3) RETURNING (id)"
+    SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
     SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password)) AS \"EXISTS\""
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
@@ -119,7 +119,7 @@ func getFrontMovies(ptype string, p int) ([]Movie, int, error) {
         q = SQL_MOVIE_GET_RECENT
     default:
         q = SQL_MOVIE_GET_RECENT
-        errorlog.Printf("tried to get %s movies", ptype)
+        warnlog.Printf("tried to get %s movies", ptype)
     }
 
     // Get total amount of flipnotes for pagination and top screen text
@@ -163,7 +163,7 @@ func deleteMovie(movieid int) error {
     return nil
 }
 
-func addMovieCommentMemo(userid int, movieid int) (int, error) {
+func addMovieReplyMemo(userid int, movieid int) (int, error) {
     var id int
     if err := db.QueryRow(SQL_MOVIE_ADD_COMMENT_MEMO, userid, movieid).Scan(&id); err != nil {
         return 0, err
@@ -176,15 +176,19 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
 
     // comment content
     rows, err := db.Query(SQL_MOVIE_GET_COMMENT, movieid, page)
-    if err != sql.ErrNoRows {
+    if err == sql.ErrNoRows {
         return nil, nil
+    } else if err != nil {
+        return nil, err
     }
     defer rows.Close()
     
     for rows.Next() {
-        var c Comment
+        c := Comment{}
 
-        rows.Scan(&c.ID, &c.Userid, &c.Is_memo, &c.Content, &c.Posted)
+        if err := rows.Scan(&c.ID, &c.Userid, &c.Username, &c.Is_memo, &c.Content, &c.Posted); err != nil {
+            return nil, err
+        }
         comments = append(comments, c)
     }
     

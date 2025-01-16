@@ -1,6 +1,6 @@
 <html>
 <head>
-<meta name="uppertitle" content="Comments">
+<meta name="upperlink" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.MovieID}}.ppm">
 <link rel="stylesheet" href="http://{{.Page.Root}}/css/ds/basic.css">
 
 {{if .LoggedIn}}
@@ -9,6 +9,15 @@
 </head>
 
 <body>
-todo
+<table>
+{{range .Comments}}
+{{if .Is_memo}}
+<tr>
+<td>{{.Userid}}</td>
+<td><img src="http://{{$.Page.Root}}/ds/v2-{{$.Page.Region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
+</tr>
+{{end}}
+{{end}}
+</table>
 </body>
 </html>

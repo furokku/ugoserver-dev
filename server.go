@@ -92,8 +92,9 @@ func main() {
         }
         templates[name] = p
     }
+    infolog.Printf("loaded %d html templates", len(templates))
 
-    // load 
+    // load ugomenus
     rd, err = os.ReadDir(cnf.Dir + "/static/menu")
     if err != nil {
         errorlog.Fatalln(err)
@@ -162,28 +163,32 @@ func main() {
 
     // eula
     // add regex here instead of an if statement in the function
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula)
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(eula)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(eula)
 
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(handleEula) // v2
-    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(handleEulaTsv) // eu
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(eula) // v2
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(eula) // v2
+    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(eulatsv) // eu
 
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/index.ugo").Methods("GET").HandlerFunc(dsi_am(false, menus["index"].ugoHandle()))
 
     // front page
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(false, serveFrontPage))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(false, movieFeed))
 
     // uploading
     // TODO: channels
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(true, postFlipnote))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(true, moviePost))
 
-    // related to fetching flipnotes
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:ppm|htm|info|dl)}").Methods("GET", "POST").HandlerFunc(dsi_am(false, movieHandler))
+    // everything related to flipnotes
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:ppm|htm|info|dl)}").Methods("GET").HandlerFunc(dsi_am(false, movieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?dl)}").Methods("POST").HandlerFunc(dsi_am(false, movieHandler))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(dsi_am(true, movieHandler))
     // stars
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
-    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(true, starMovieHandler))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(true, starMovie))
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(true, starMovie))
+    //comments
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(movieReply)
+    h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(movieReply)
 
     // NAS
     h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
@@ -192,6 +197,7 @@ func main() {
     // debug menu for testing features / quick access
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/debug.htm").Methods("GET").HandlerFunc(dsi_am(false, debug))
 
+    // secondary authentication
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.htm}").Methods("GET").HandlerFunc(dsi_am(false, sa_reg))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?/sa/register.kbd}").Methods("POST").HandlerFunc(dsi_am(false, sa_reg_kbd))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/sa/login.htm").Methods("GET").HandlerFunc(dsi_am(false, sa_login))
@@ -204,8 +210,8 @@ func main() {
     h.Path("/ds/test.reply").Methods("POST").HandlerFunc(dsi_am(false, misc))
     h.Path("/ds/{reg:v2(?:-(?:us|eu|jp))?}/jump").HandlerFunc(dsi_am(false, jump))
 
-    h.NotFoundHandler = loggerMiddleware(retErrorHandler(http.StatusNotFound))
-    h.MethodNotAllowedHandler = loggerMiddleware(retErrorHandler(http.StatusMethodNotAllowed))
+    h.NotFoundHandler = loggerMiddleware(returncode(http.StatusNotFound))
+    h.MethodNotAllowedHandler = loggerMiddleware(returncode(http.StatusMethodNotAllowed))
 
     h.PathPrefix("/images").HandlerFunc(static)
     h.PathPrefix("/css").HandlerFunc(static)

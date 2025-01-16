@@ -9,19 +9,24 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/nfnt/resize"
 
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"strconv"
 	"strings"
+
+	"floc/ugoserver/img"
 )
 
 var (
     prettyPageTypes = map[string]string{"recent":"Recent"}
 )
 
-// Not my finest code up there so we're doing this a better way
+// Movie handler
+// Responsible for updating view/download counts, deleting flipnotes,
+// .info requests, returning ppm files, html overview
 func movieHandler(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
@@ -39,7 +44,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
     case "dl":
         err := updateViewDlCount(id, ext)
         if err != nil {
-            errorlog.Printf("failed to update %v count: %v", ext, err)
+            errorlog.Printf("while updating %v count: %v", ext, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -49,7 +54,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
     case "delete":
         err := deleteMovie(id)
         if err != nil {
-            errorlog.Printf("failed to delete %v: %v", id, err)
+            errorlog.Printf("while deleting %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -65,7 +70,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
 
         err = updateViewDlCount(id, ext)
         if err != nil {
-            errorlog.Printf("failed to update %v count: %v", ext, err)
+            errorlog.Printf("while updating %v count: %v", ext, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -77,7 +82,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         mode := r.URL.Query().Get("mode")
         cn, err := getMovieCommentsCount(id)
         if err != nil {
-            errorlog.Printf("could not get comment count for flipnote %d: %v", id, err)
+            errorlog.Printf("while getting comment count for flipnote %d: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -97,7 +102,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             
             comments, err := getMovieComments(id, p)
             if err != nil {
-                errorlog.Printf("could not get comments for flipnote %v: %v", id, err)
+                errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
                 w.WriteHeader(http.StatusInternalServerError)
                 return
             }
@@ -105,6 +110,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             if err = templates["comment"].Execute(w, CommentPage{
                 Page: Page{
                     Root: cnf.Root,
+                    Region: s.getregion(),
                     LoggedIn: s.is_logged_in,
                 },
                 Comments: comments,
@@ -124,7 +130,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusNotFound)
             return
         } else if err != nil {
-            errorlog.Printf("could not get flipnote %v: %v", id, err)
+            errorlog.Printf("while getting flipnote %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -153,19 +159,18 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-// add stars to flipnote
-func starMovieHandler(w http.ResponseWriter, r *http.Request) {
+
+// Add stars to movie on request
+func starMovie(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     id, err := strconv.Atoi(vars["movieid"])
     if err != nil {
-        errorlog.Printf("bad movieid when adding star: %v", err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     count, err := strconv.Atoi(r.Header.Get("X-Hatena-Star-Count"))
     if err != nil {
-        errorlog.Printf("bad star count from %d: %v", s.userid, err)
         w.WriteHeader(http.StatusBadRequest)
         return
     }
@@ -175,15 +180,16 @@ func starMovieHandler(w http.ResponseWriter, r *http.Request) {
     }
     
     if err := updateMovieStars(s.userid, id, color, count); err != nil {
-        errorlog.Printf("failed to update star count for %d (user %d): %v", id, s.userid, err)
+        errorlog.Printf("while updating star count for %d (user %d): %v", id, s.userid, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 }
 
-// Handler for building ugomenus for the front page
-// recent, hot, most liked, etc..
-func serveFrontPage(w http.ResponseWriter, r *http.Request) {
+
+// Handler for building ugomenus for the feed
+// recent, todo: hot, most liked, etc..
+func movieFeed(w http.ResponseWriter, r *http.Request) {
     
     base := ugoNew()
     base.setLayout(2)
@@ -203,7 +209,7 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 
     flipnotes, total, err := getFrontMovies(pt, p)
     if err != nil {
-        errorlog.Printf("could not get flipnotes: %v", err)
+        errorlog.Printf("while getting feed flipnotes: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
@@ -240,26 +246,12 @@ func serveFrontPage(w http.ResponseWriter, r *http.Request) {
 }
 
 
-// I have no idea why this is needed
-// nor what it does
-// Changes some statistic in the flipnote viewer maybe?
-// Replaced by a catchall function
-/* func handleInfo(w http.ResponseWriter, r *http.Request) {
-    w.Write([]byte("0\n0\n"))
-} */
-
-
-// Return delete, upload, download, eula
-func handleEula(w http.ResponseWriter, r *http.Request) {
+// Return text files in utf16
+func eula(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
     txt := vars["txt"]
 
-    // if !slices.Contains(txts, file) {
-    //    http.Error(w, "not found", http.StatusNotFound)
-    //    return
-    //}
-    
     text, err := os.ReadFile(cnf.Dir + "/static/txt/" + txt + ".txt")
     if err != nil {
         warnlog.Printf("failed to read %v: %v", txt, err)
@@ -269,30 +261,32 @@ func handleEula(w http.ResponseWriter, r *http.Request) {
     w.Write(encUTF16LE(string(text)))
 }
 
-func handleEulaTsv(w http.ResponseWriter, r *http.Request) {
+func eulatsv(w http.ResponseWriter, r *http.Request) {
     w.Write(append(encUTF16LE("English"), []byte("\ten")...))
 }
 
-// accept flipnotes uploaded thru internal ugomemo:// url
-// or flipnote.post url
-func postFlipnote(w http.ResponseWriter, r *http.Request) {
+
+
+// Movie post
+// posts a flipnote
+func moviePost(w http.ResponseWriter, r *http.Request) {
 
     // validation is done by middleware
     s := sessions[r.Header.Get("X-Dsi-Sid")]
 
-    ppmBody, err := io.ReadAll(r.Body)
+    ppm, err := io.ReadAll(r.Body)
     if err != nil {
-        errorlog.Printf("failed to read ppm from POST request body! %v", err)
+        errorlog.Printf("while reading ppm from request body: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
-    fsid := strings.ToUpper(hex.EncodeToString(reverse(ppmBody[0x5E : 0x66])))
-    name := base64.StdEncoding.EncodeToString(decUTF16LE(ppmBody[0x40 : 0x56]))
-    l := int(ppmBody[0x10])
-    fn := strings.ToUpper(hex.EncodeToString(ppmBody[0x78 : 0x7B])) + "_" +
-                string(ppmBody[0x7B : 0x88]) + "_" +
-                editCountPad(binary.LittleEndian.Uint16(ppmBody[0x88 : 0x90]))
+    fsid := strings.ToUpper(hex.EncodeToString(reverse(ppm[0x5E : 0x66])))
+    name := base64.StdEncoding.EncodeToString(decUTF16LE(ppm[0x40 : 0x56]))
+    l := int(ppm[0x10])
+    fn := strings.ToUpper(hex.EncodeToString(ppm[0x78 : 0x7B])) + "_" +
+                string(ppm[0x7B : 0x88]) + "_" +
+                editCountPad(binary.LittleEndian.Uint16(ppm[0x88 : 0x90]))
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
@@ -302,7 +296,7 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
         w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
         return
     } else if err != nil {
-        errorlog.Printf("could not add flipnote: %v", err)
+        errorlog.Printf("while adding flipnote: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
@@ -312,20 +306,17 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
     fp, err := os.OpenFile(cnf.StoreDir + "/movies/" + fmt.Sprint(id) + ".ppm", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // >> store by id to not allow filename clashes
-        // this is kinda stupid because filenames allow to identify
-        // whether a flipnote has already been uploaded. However I think
-        // an id-based system is better for querying flipnotes vs
-        // very long, hard to remember filenames. This isn't
-        // 2008 after all
-        errorlog.Printf("failed to open path to ppm: %v", err)
+        // this isn't really an issue and i was being dumb because
+        // all filenames are unique. But i like this more
+        errorlog.Printf("while opening path to ppm: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
     defer fp.Close()
 
-    if _, err := fp.Write(ppmBody); err != nil {
-        errorlog.Printf("failed to write ppm to file: %v", err)
+    if _, err := fp.Write(ppm); err != nil {
+        errorlog.Printf("while writing ppm to file: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
@@ -334,7 +325,8 @@ func postFlipnote(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
 }
 
-func retErrorHandler(code int) http.HandlerFunc {
+// simple function to return a status code
+func returncode(code int) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(code)
     }
@@ -342,10 +334,96 @@ func retErrorHandler(code int) http.HandlerFunc {
     return fn
 }
 
+func movieReply(w http.ResponseWriter, r *http.Request) {
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    v := mux.Vars(r)
+
+    switch v["ext"] {
+    case "npf":
+        commentid, err := strconv.Atoi(v["commentid"])
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+        
+        // get the file
+        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, commentid))
+        if err != nil {
+            errorlog.Printf("while reading reply %d file: %v", commentid, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        w.Write(npf)
+
+    case "reply":
+        movieid, err := strconv.Atoi(v["movieid"])
+        if err != nil {
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+
+        // for now only memo replies from the ds
+        reply, err := io.ReadAll(r.Body)
+        if err != nil {
+            errorlog.Printf("while reading reply body: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+
+        im, err := img.FromPpm(reply)
+        if err != nil {
+            errorlog.Printf("while decoding reply: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+
+        // only one page flipnotes should be posted
+        // this is in case of a bad actor manually POSTing a custom ppm
+        if len(im) != 1 {
+            errorlog.Printf("multiple frames in comment memo from %v", s.userid)
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+        
+        // Resize image
+        scaled := resize.Resize(64, 48, im[0], resize.NearestNeighbor)
+        
+        // Convert to npf
+        npf, err := img.ToNpf(scaled)
+        if err != nil {
+            errorlog.Printf("while converting reply to npf: %v", err)
+        }
+        
+        id, err := addMovieReplyMemo(s.userid, movieid)
+        if err != nil {
+            errorlog.Printf("while adding movie reply to database: %v", err)
+        }
+        
+        fp, err := os.OpenFile(cnf.StoreDir + "/comments/" + fmt.Sprint(id) + ".npf", os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+        if err != nil {
+            errorlog.Printf("while opening path to reply npf: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+
+        defer fp.Close()
+
+        if _, err := fp.Write(npf); err != nil {
+            errorlog.Printf("while writing reply npf to file: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        w.WriteHeader(http.StatusOK)
+    }
+}
+
+// todo: clean
 func misc(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
     case "/ds/imagetest.htm":
-        w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"big ol test\"></head><body><img src=\"http://flipnote.hatena.com/images/ds/demo2.npf\" width=\"50\" height=\"50\" align=\"left\"><p>test</p></body></html>"))
+        w.Write([]byte("<html><head><meta name=\"uppertitle\" content=\"big ol test\"></head><body><img src=\"http://flipnote.hatena.com/ds/v2-us/comment/1.npf\" width=\"64\" height=\"48\" align=\"left\"><p>test</p></body></html>"))
     case "/ds/postreplytest.htm":
         w.Write([]byte("<html><head><meta name=\"replybutton\" content=\"http://flipnote.hatena.com/ds/test.reply\"></head><body><p>reply test</p></body></html>"))
     case "/ds/test.reply":
@@ -356,6 +434,9 @@ func misc(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+// Return files from the filesystem
+// Dots and stuff *should* be filtered out by net/http, but
+// if it becomes an issue I'll fix it
 func static(w http.ResponseWriter, r *http.Request) {
     file, err := os.ReadFile(cnf.Dir + "/static" + r.URL.Path)
     if  err != nil {
@@ -366,11 +447,13 @@ func static(w http.ResponseWriter, r *http.Request) {
     w.Write(file)
 }
 
+// todo: refactor
 func jump(w http.ResponseWriter, r *http.Request) {
     w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
     w.Write(encUTF16LE("bazinga"))
 }
 
+// todo: template
 func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]

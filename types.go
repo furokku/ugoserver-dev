@@ -100,6 +100,7 @@ type (
     Comment struct {
         ID int
         Userid int
+        Username string
         Is_memo bool
         Content string
         Posted time.Time
