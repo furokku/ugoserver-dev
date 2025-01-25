@@ -95,7 +95,7 @@ func main() {
             continue
         }
         name := strings.Split(tpl.Name(), ".")[0]
-        p, err := template.ParseFiles(fmt.Sprintf("%s/static/template/%s", cnf.StoreDir, tpl.Name()))
+        p, err := template.ParseFiles(fmt.Sprintf("%s/static/template/%s", cnf.Dir, tpl.Name()))
         if err != nil {
             errorlog.Printf("%v\n", err)
             continue
@@ -114,7 +114,7 @@ func main() {
             continue
         }
         name := strings.Split(menu.Name(), ".")[0]
-        bytes, err := os.ReadFile(fmt.Sprintf("%s/static/menu/%s", cnf.StoreDir, menu.Name()))
+        bytes, err := os.ReadFile(fmt.Sprintf("%s/static/menu/%s", cnf.Dir, menu.Name()))
         if err != nil {
             errorlog.Printf("%v\n", err)
             continue
