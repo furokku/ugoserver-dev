@@ -19,8 +19,15 @@ A few things need to be done prior to starting the server, namely
 * change the configuration as necessary. At a minimum, you need to set the options related to the database, so that it can connect, and the options for the directories with static content. an example is available
 * configure a reverse proxy to redirect queries to this server @ port 9000. an example nginx config is available
 * configure a dns to redirect flipnote's queries to this server. example dnsmasq and bind9 named config are available
-* start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if not found. Templates will be read from $dir$/static/template/\*.html, predefined menus from $dir$/static/menu/\*.json, text content from $dir$/static/txt ($dir$ is set in the config file)
-you should be able to connect after doing all of this. Set the dns on your console and try to connect, 2xxxx, 33xxx codes mean something is up, possibly with dns/nas, 304xxx means something is up with the html/menu bits of online mode. 304001 usually appears when the console received a response, but no data. 304605 can mean a variety of things and isn't easy to diagnose. HTTP status codes are also displayed as 304xxx
+* start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if not found.
+Templates will be read from \$dir\$/static/template/\*.html, predefined menus from \$dir\$/static/menu/\*.json, text content from $dir$/static/txt ($dir$ is set in the config file)
+you should be able to connect after doing all of this.
+<br>Set the dns on your console and try to connect
+<br>
+<br>2xxxx, 33xxx codes mean something is up, possibly with dns/nas
+<br>304xxx means something is up with the html/menu bits of online mode
+<br>304001 usually appears when the console received a response, but no data
+<br>304605 can mean a variety of things and isn't easy to diagnose. HTTP status codes are also displayed as 304xxx
 
 ## current state
 I have quite a few things planned for this server, so maybe there will be more commits pushed here
