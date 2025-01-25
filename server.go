@@ -207,7 +207,7 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(movieFeed, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channel.ugo").Methods("GET").HandlerFunc(dsi_am(movieChannelFeed, false, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(moviePost, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(moviePost, true, false))
 
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(dsi_am(movieHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:dl)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, false, false))
