@@ -21,9 +21,8 @@ A few things need to be done prior to starting the server, namely
 * configure a dns to redirect flipnote's queries to this server. example dnsmasq and bind9 named config are available
 * start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if not found.
 
-<br>Templates will be read from \$dir\$/static/template/\*.html, predefined menus from \$dir\$/static/menu/\*.json, text content from $dir$/static/txt ($dir$ is set in the config file)
-you should be able to connect after doing all of this.
-<br>Set the dns on your console and try to connect
+<br>Templates will be read from dir/static/template/\*.html, predefined menus from dir/static/menu/\*.json, text content from dir/static/txt (dir is set in the config file)
+you should be able to set the dns and connect after doing all of this.
 <br>
 <br>2xxxx, 33xxx codes mean something is up, possibly with dns/nas
 <br>304xxx means something is up with the html/menu bits of online mode
