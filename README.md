@@ -20,7 +20,8 @@ A few things need to be done prior to starting the server, namely
 * configure a reverse proxy to redirect queries to this server @ port 9000. an example nginx config is available
 * configure a dns to redirect flipnote's queries to this server. example dnsmasq and bind9 named config are available
 * start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if not found.
-Templates will be read from \$dir\$/static/template/\*.html, predefined menus from \$dir\$/static/menu/\*.json, text content from $dir$/static/txt ($dir$ is set in the config file)
+
+<br>Templates will be read from \$dir\$/static/template/\*.html, predefined menus from \$dir\$/static/menu/\*.json, text content from $dir$/static/txt ($dir$ is set in the config file)
 you should be able to connect after doing all of this.
 <br>Set the dns on your console and try to connect
 <br>
