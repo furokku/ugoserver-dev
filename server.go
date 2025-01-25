@@ -9,7 +9,7 @@ package main
 //
 // support should only be enabled for the latest version of flipnote studio
 // US/EU only had one, but JP had three so only the latest version will work
-// theoretically rev2 works, enable that if you want. see notes.md
+// theoretically rev2 works, modify to enable that if you want
 //
 // make sure that the client receives as few non-200 responses as possible
 // (preferably zero), as this makes flipnote studio behave strangely sometimes
@@ -17,13 +17,18 @@ package main
 // TODO:
 // Command search
 // Lots of tlc on the templates for movies, comments, secondary auth
+// Text comments
 // Users have expendable stars
 // Mail
 // More sorting modes
 // API
-// Web page
+// Web interface
 // Build channels menu automatically
 // Creator's room
+// Documentation
+// Rate limit
+// Inform the user when the session expires within flipnote studio
+// CLI tool for things like whitelist, channels, bans, etc.
 
 import (
 	"database/sql"

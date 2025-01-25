@@ -2,10 +2,6 @@
 
 ## overview
 Ugoserver is a replacement server for Flipnote Studio's online functionality, Flipnote Hatena
-<br>There exist a few servers, however their completeness varies wildly. things like hatena-server are very outdated, others unmaintained or cryptic, etc.
-<br>I started this as a pet project, something to kill time, but as it grew I wanted to create a fully fledged server for people to use and experiment with Flipnote
-<br>commits can be sparse, but I try to work on this whenever i have the time and motivation
-<br>
 <br>Issues and pull requests are welcome
 <br>
 <br>As part of development, I've written a library to convert to/from the image formats that Flipnote Studio uses. Namely npf, nbf, ntft and ppm. You can find this in the img folder
@@ -20,9 +16,8 @@ A few things need to be done prior to starting the server, namely
 * configure a reverse proxy to redirect queries to this server @ port 9000. an example nginx config is available
 * configure a dns to redirect flipnote's queries to this server. example dnsmasq and bind9 named config are available
 * start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if not found.
-
+<br>you should be able to set the dns and connect after doing all of this.
 <br>Templates will be read from dir/static/template/\*.html, predefined menus from dir/static/menu/\*.json, text content from dir/static/txt (dir is set in the config file)
-you should be able to set the dns and connect after doing all of this.
 <br>
 <br>2xxxx, 33xxx codes mean something is up, possibly with dns/nas
 <br>304xxx means something is up with the html/menu bits of online mode
