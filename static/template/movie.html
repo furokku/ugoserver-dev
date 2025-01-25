@@ -1,20 +1,21 @@
+<!-- needs a lot of TLC -->
 <html>
 <head>
-<link rel="stylesheet" href="http://{{.Page.Root}}/css/ds/basic.css">
+<link rel="stylesheet" href="http://{{.Root}}/css/ds/basic.css">
 
-<meta name="upperlink" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.ppm">
-<meta name="savebutton" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.ppm">
+<meta name="upperlink" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
+<meta name="savebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
 
-{{if .Page.LoggedIn}}
-<meta name="starbutton" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.star">
-<meta name="starbutton1" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.star/green,99">
-<meta name="starbutton2" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.star/red,99">
-<meta name="starbutton3" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.star/blue,99">
-<meta name="starbutton4" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.star/purple,99">
+{{if .Session.IsLoggedIn}}
+<meta name="starbutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star">
+<meta name="starbutton1" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/green,99">
+<meta name="starbutton2" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/red,99">
+<meta name="starbutton3" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/blue,99">
+<meta name="starbutton4" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/purple,99">
 {{end}}
 
-{{if .MovieAuthor}}
-<meta name="deletebutton" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.delete">
+{{if eq .Session.UserID .Movie.AuUserID}}
+<meta name="deletebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.delete">
 {{end}}
 
 <meta name="playcontrolbutton" content="1">
@@ -39,7 +40,7 @@ Template test
 </tr>
 <tr>
 <td>author</td>
-<td>{{.Movie.Au_userid}}</td>
+<td>{{.Movie.AuUserID}}</td>
 </tr>
 <tr>
 <td>downloads</td>
@@ -51,6 +52,6 @@ Template test
 </tr>
 </table>
 <br>
-<a href="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.Movie.ID}}.htm?mode=comment&page=1">Comments ({{ .CommentCount }})</a>
+<a href="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.htm?mode=comment&page=1">Comments ({{ .Movie.Replies }})</a>
 </body>
 </html>

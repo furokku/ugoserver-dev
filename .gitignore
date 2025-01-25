@@ -1,7 +1,5 @@
 # you should create these
 # dirs yourself
-private/raw/
-
 config.json
 nginx.conf
 dnsmasq.conf

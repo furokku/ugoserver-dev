@@ -36,7 +36,8 @@ func (rw *rwWrapper) WriteHeader(code int) {
     rw.done = true
 }
 
-func loggerMiddleware(next http.Handler) http.Handler {
+// logger is middleware to log all HTTP requests and responses
+func logger(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
         // ignore bots and etc.
         if cnf.UseHosts && !slices.Contains(cnf.Hosts, r.Host) {

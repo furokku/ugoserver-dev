@@ -14,7 +14,6 @@ var (
     ErrIpBan = errors.New("user is ip banned")
     ErrFsidBan = errors.New("user is fsid banned")
     ErrAlreadyBanned = errors.New("user is already banned")
-    ErrInvalidDbType = errors.New("invalid db type in config")
     ErrNoSid = errors.New("invalid sid")
     ErrNoUser = errors.New("no user exists with this fsid")
     ErrNoMovie = errors.New("movie with such id does not exist")

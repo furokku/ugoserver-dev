@@ -1,6 +1,6 @@
 package img
 
-// encode.go: encoding nbf/npf/ntft images
+// encode.go: encode nbf/npf/ntft images
 
 import (
 	"image"
@@ -85,6 +85,7 @@ func ToNpf(img image.Image) ([]byte, error) {
     return out, nil
 }
 
+// generic function to encode npf
 func EncodeNpf(w io.Writer, m image.Image) error {
     npf, err := ToNpf(m)
     if err != nil {
@@ -103,7 +104,7 @@ func EncodeNpf(w io.Writer, m image.Image) error {
 func ToNbf(img image.Image) ([]byte, error) {
     var im []int
     var out []byte
-    colors := make(map[color.Color]int, 15)
+    colors := make(map[color.Color]int, 256)
     
     xm := img.Bounds().Max.X
 
@@ -161,20 +162,21 @@ func ToNbf(img image.Image) ([]byte, error) {
     return out, nil
 }
 
+// same thing
 func EncodeNbf(w io.Writer, m image.Image) error {
-    npf, err := ToNbf(m)
+    nbf, err := ToNbf(m)
     if err != nil {
         return err
     }
     
-    w.Write(npf)
+    w.Write(nbf)
     return nil
 }
 
 
 // ntft: ugomemo image format, used mainly for icons in ugomenus but also in html pages
 // in ugomenus, icon must be 32x32
-// has the same padding quirks as npf (width must be padded to nearest ^2) 
+// has the same padding quirks as npf
 // apparently has a size limit of 128x128
 func ToNtft(img image.Image) ([]byte, error) {
     var bytes []byte
@@ -202,6 +204,7 @@ func ToNtft(img image.Image) ([]byte, error) {
     return bytes, nil
 }
 
+// generic function to encode ntfts
 func EncodeNtft(w io.Writer, m image.Image) error {
     ntft, err := ToNtft(m)
     if err != nil {

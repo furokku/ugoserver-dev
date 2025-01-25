@@ -10,9 +10,7 @@ import (
 
 const MENU_MAGIC string = "UGAR"
 
-// menubc (menu byte convert)
-// helper function to convert arguments into an
-// ugomenu entry
+// menubc() (menu byte convert) is a helper to convert arguments into a menu entry
 func menubc(t int, a ...any) []byte {
     var entry []byte
     if t != 0 {
@@ -27,28 +25,29 @@ func menubc(t int, a ...any) []byte {
     return entry
 }
 
-// return a fresh pointer to ugomenu
-func ugoNew() *Ugomenu {
+// newMenu() returns a fresh pointer to ugomenu
+func newMenu() *Ugomenu {
     u := Ugomenu{}
 
     return &u
 }
 
-// set ugomenu layout
-// not sure what exactly the second numbers always mean
-// examples:
-// index.ugo, big top button, rest small | 0
-// mall top button, rest small | 1
-// inbox.ugo, feed, 6 sq buttons sidebyside | 2 (1)
+// setLayout() sets menu layout
+// not sure what exactly the second numbers always mean, ie:
+// index.ugo / big top button, rest small | 0;
+// list of small buttons | 1;
+// inbox.ugo / feed / 6 sq buttons side by side | 2 (1);
 // channels.ugo | 3 4
 func (u *Ugomenu) setLayout(types ...int) {
     u.Layout = types
 }
 
-// top screen contents
+// setTopScreenURL() sets the URL to an image(nbf) or animation(ppm) for the top screen
+// If this is set, other options are ignored
 func (u *Ugomenu) setTopScreenURL(url string) {
     u.TopScreenContents.URL = url
 }
+// setTopScreenText() sets values for text on the top screen
 func (u *Ugomenu) setTopScreenText(title string, left string, right string, top string, bottom string) {
     u.TopScreenContents.Uppertitle = title
     u.TopScreenContents.Uppersubleft = left
@@ -57,20 +56,18 @@ func (u *Ugomenu) setTopScreenText(title string, left string, right string, top 
     u.TopScreenContents.Uppersubbottom = bottom
 }
 
-// adds a dropdown button at the top
-// applicable to layout 2, others not sure
+// addDropdown() adds a dropdown button at the top of the bottom screen
 func (u *Ugomenu) addDropdown(url string, label string, selected bool) {
     u.Items = append(u.Items, MenuItem{Type:"dropdown", URL:url, Label:label, Selected:selected})
 }
 
-// adds a corner button
-// there can be at most two on any
-// one ugomenu
+// addCorner() adds a corner button,
+// there can be at most two on any one menu
 func (u *Ugomenu) addCorner(url string, label string) {
     u.Items = append(u.Items, MenuItem{Type:"corner", URL:url, Label:label})
 }
 
-// add a button
+// addButton() adds a button to the menu
 // unlimited number, for flipnote previews must have tmb embed
 // icon index: index.ugo: 100 people, 101 tv, 102 globe, 103 search, 104 frog
 // type 0,1: 101 tv, 104 frog, 113 6frog, 114 person, 115 rarrow, 116 larrow, 117 question
@@ -91,10 +88,14 @@ func (u *Ugomenu) addButton(url string, icon int, label string, extra ...int) {
     }
 }
 
+// addEmbed() takes in a slice of bytes to be added to the menu
 func (u *Ugomenu) addEmbed(e []byte) {
     u.EmbedBytes = append(u.EmbedBytes, e)
 }
 
+// pack() builds the menu, converting the struct into something the DS can parse;
+// "flipnote.hatena.com" and "v2-xx" will be replaced with the Root url and the correct region
+// and labels will be converted automatically
 func (u Ugomenu) pack(r string) []byte {
 
     var header, menus, embedded []byte
@@ -127,7 +128,7 @@ func (u Ugomenu) pack(r string) []byte {
         }
     }
 
-    menus = padBytes(menus)
+    menus = append(menus, pad(len(menus))...)
 
     if len(u.Embed) != 0 || len(u.EmbedBytes) != 0 {
         for _, embed := range u.Embed {
@@ -143,7 +144,7 @@ func (u Ugomenu) pack(r string) []byte {
 
         emb = true
         sections = 2
-        embedded = padBytes(embedded)
+        embedded = append(embedded, pad(len(embedded))...)
     }
 
     header = []byte(MENU_MAGIC)
@@ -154,7 +155,8 @@ func (u Ugomenu) pack(r string) []byte {
     return append(header, append(menus, embedded...)...)
 }
 
-func (u Ugomenu) ugoHandle() http.HandlerFunc {
+// handle() method will return an http.HandlerFunc which responds with a packed menu
+func (u Ugomenu) handle() http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
         w.Write(u.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion()))
@@ -163,14 +165,14 @@ func (u Ugomenu) ugoHandle() http.HandlerFunc {
     return fn
 }
 
-// 4 byte padding for ugomenus
-func padBytes(d []byte) []byte {
-    var padded = d
+// pad() returns enough null bytes to pad a slice so that its length is divisible by 4
+func pad(l int) []byte {
+    var pad []byte
 
-    if x := len(d) % 4; x != 0 {
+    if x := l % 4; x != 0 {
         for i := 0; i < (4-x); i++ {
-            padded = append(padded, 0x00)
+            pad = append(pad, 0x00)
         }
     }
-    return padded
+    return pad
 }

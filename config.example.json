@@ -11,9 +11,6 @@
     "store_dir": "/srv/hatena-storage",
     
     "db": {
-        "type": "postgres",
-
-        "_comment_c": "for postgres",
         "host": "localhost",
         "port": 5432,
         "user": "furokku",

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,26 +12,31 @@ import (
 )
 
 const (
-    // we do not use nas much
-    // so this can be garbage
+    // nas isn't used here so this can be garbage
     NAS_TOKEN string = "NDSflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocflocfloc"
-    MELONDS_BSSID string = "00f077777777"
+    MELONDS_BSSID string = "00f077777777" // default melonAP bssid, catches emulators
+
+    MSG_NO_SUPPORT string = "you are using an outdated version of flipnote studio.\nplease connect using the latest version."
     MSG_EARLY_ERROR string = "an error occurred during\nearly authentication."
-    MSG_ERROR string = ""
+    MSG_ERROR_REF string = "an error occured. try again later\nreference: "
 )
 
-// dsi mode auth middleware
-// check_id false : check for sid after basic authentication
-// check_id true : check for userid after login
-func dsi_am(check_id bool, next http.HandlerFunc) http.HandlerFunc {
+// dsi_am middleware checks whether a user is logged in, and optionally redirects them
+// to a log in page if they are not
+func dsi_am(next http.HandlerFunc, check_id bool, redirect bool) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
         sid := r.Header.Get("X-Dsi-Sid")
+        s := sessions[sid]
+        // Not authenticated thru flipnote
         if err := isSidValid(sid); err != nil {
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
         
-        if check_id && !sessions[sid].is_logged_in {
+        if check_id && !s.IsLoggedIn {
+            if redirect {
+                http.HandlerFunc(sa).ServeHTTP(w, r)
+            }
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
@@ -41,6 +47,7 @@ func dsi_am(check_id bool, next http.HandlerFunc) http.HandlerFunc {
     return fn
 }
 
+// hatenaAuth handler authenticates clients after NAS on /ds/v2-xx/auth
 func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
@@ -84,32 +91,32 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         }
 
         // fill out with initial data
-        req := session{
-            mac:      r.Header.Get("X-Dsi-Mac"),
-            fsid:     r.Header.Get("X-Dsi-Id"),
-            auth:     r.Header.Get("X-Dsi-Auth-Response"),
-            ver:      ver,
-            username: r.Header.Get("X-Dsi-User-Name"),
-            region:   region, // unset on rev2
-            lang:     r.Header.Get("X-Dsi-Lang"), // unset on rev2
-            country:  r.Header.Get("X-Dsi-Country"), // unset on rev2
-            birthday: r.Header.Get("X-Birthday"),
-            datetime: r.Header.Get("X-Dsi-Datetime"), // unset on rev2
-            color:    r.Header.Get("X-Dsi-Color"), // unset on rev2
+        req := Session{
+            MAC:      r.Header.Get("X-Dsi-Mac"),
+            FSID:     r.Header.Get("X-Dsi-Id"),
+            Auth:     r.Header.Get("X-Dsi-Auth-Response"),
+            Ver:      ver,
+            Username: qd(r.Header.Get("X-Dsi-User-Name")),
+            Region:   region, // unset on rev2
+            Lang:     r.Header.Get("X-Dsi-Lang"), // unset on rev2
+            Country:  r.Header.Get("X-Dsi-Country"), // unset on rev2
+            Birthday: r.Header.Get("X-Birthday"),
+            DateTime: r.Header.Get("X-Dsi-Datetime"), // unset on rev2
+            Color:    r.Header.Get("X-Dsi-Color"), // unset on rev2
             
-            ip: ip,
-            issued: time.Now(),
+            IP: ip,
+            Issued: time.Now(),
         }
 
-        ref := sid[:6] + "_" + req.mac[6:]
+        ref := sid[:6] + "_" + req.MAC[6:]
 
         if r, err := req.validate(); err != nil {
             // funkster detected
             infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)
-            msg := "an error occured. try again later\nreference: " + ref
+            msg := MSG_ERROR_REF + ref
 
             if err == ErrFsidBan || err == ErrIpBan {
-                msg = "you have been banned until\n" + r.expires.UTC().Format(time.DateTime) + " UTC"  + "\n\nreason: " + r.message + "\n\nreference: " + ref
+                msg = fmt.Sprintf("you have been banned until\n%s UTC\n\nreason: %s\n\nreference: %s", r.expires.UTC().Format(time.DateTime), r.message, ref)
             }
 
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
@@ -117,21 +124,21 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        // fun part: figure out if user has registered before
+        // figure out if user has registered before,
         // whether logging in from the same ip
         // and obtain a user id
-        userid, last_login_ip, err := getUserDsi(req.fsid)
+        UserID, last_login_ip, err := getUserDsi(req.FSID)
         if err == ErrNoUser {
-            req.is_unregistered = true
+            req.IsUnregistered = true
         } else if err != nil {
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            w.Write(encUTF16LE("an error occured. try again later\nreference: " + ref))
+            w.Write(encUTF16LE(MSG_ERROR_REF + ref))
             return
         }
 
-        req.userid = userid
+        req.UserID = UserID
         if ip == last_login_ip {
-            req.is_logged_in = true
+            req.IsLoggedIn = true
         }
         
         sessions[sid] = req
@@ -146,6 +153,26 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
 }
 
+// nosupport handler accept rev2 clients on /ds/v2/auth and rejects them with a message
+func nosupport(w http.ResponseWriter, r *http.Request) {
+
+    switch r.Method {
+
+    case "GET":
+        w.Header()["X-DSi-SID"] = []string{"x"}
+        w.Header()["X-DSi-Auth-Challenge"] = []string{"boyfantasy"}
+        w.WriteHeader(http.StatusOK)
+
+    case "POST":
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE(MSG_NO_SUPPORT))
+    }
+}
+
+// nasAuth handler accepts queries to /ac (nas account) and /pr (nas profanity check);
+// requests here are logged, but don't provide much useful information other than BSSID, which
+// is used to determine if a client is an emulator. This only works if the emulator's AP BSSID has
+// not been changed, however, which it usually isn't
 func nasAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
@@ -210,7 +237,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                 case "acctcreate":
                     resp.Set("retry", nasEncode("0"))
                     resp.Set("returncd", nasEncode("002"))
-                    resp.Set("userid", nasEncode("notimportant"))
+                    resp.Set("UserID", nasEncode("notimportant"))
 
                 default:
                     debuglog.Printf("action %s", action)
@@ -231,45 +258,47 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte(resp.Encode()))
 }
 
-func (a session) validate() (restriction, error) {
+// validate() method will take a session and check if the user is banned or otherwise has any inconsistencies
+func (a Session) validate() (restriction, error) {
 
     // empty restriction
     e := restriction{}
 
 
-    if ok, err := whitelistQueryFsid(a.fsid); err != nil {
+    if ok, err := whitelistQueryFsid(a.FSID); err != nil {
         return e, err
     } else if ok {
         return e, nil
     }
 
-    if b, r, err := queryBan(a.fsid); err != nil {
+    if b, r, err := queryBan(a.FSID); err != nil {
         return e, err
     } else if b {
         return r, ErrFsidBan
     }
-    if b, r, err := queryBan(a.ip); err != nil {
+    if b, r, err := queryBan(a.IP); err != nil {
         return e, err
     } else if b {
         return r, ErrIpBan
     }
 
-    if a.mac[5:] != a.fsid[9:] {
+    if a.MAC[5:] != a.FSID[9:] {
         return e, ErrAuthMacFsidMismatch
     }
-    if a.fsid[9:] == "BF112233" {
+    if a.FSID[9:] == "BF112233" {
         return e, ErrAuthEmulatorId
     }
-    if a.mac == "0009BF112233" {
+    if a.MAC == "0009BF112233" {
         return e, ErrAuthEmulatorMac
     }
-    if age(a.birthday) < 13 {
+    if a.age() < 13 {
         return e, ErrAuthUnderage
     }
 
     return e, nil
 }
 
+// isSidValid() checks if a sid is taken
 func isSidValid(sid string) error {
     if _, ok := sessions[sid]; ok {
         return nil
@@ -277,7 +306,7 @@ func isSidValid(sid string) error {
     return ErrNoSid
 }
 
-// issue a unique sid to the client
+// genSid() returns a new, unusued session identifier
 func generateUniqueSession() string {
     var sid string
 
@@ -289,23 +318,24 @@ func generateUniqueSession() string {
     }
 }
 
-// find expired sessions and delete them every
-// 5 minutes
+// pruneSids() will run indefinitely and, every 5 minutes, loop through the map of sessions
+// and remove the expired sessions
 func pruneSids() {
     for {
         time.Sleep(5 * time.Minute)
 
         for k, v := range sessions {
-            if time.Since(v.issued).Seconds() >= 7200 {
+            if time.Since(v.Issued).Seconds() >= 7200 {
                 delete(sessions, k)
             }
         }
     }
 }
 
-func (s session) getregion() string {
+// getregion() returns a two letter region code for urls
+func (s Session) getregion() string {
     var r string
-    switch s.region {
+    switch s.Region {
     case 0:
         r = "jp"
     case 1:
@@ -316,109 +346,81 @@ func (s session) getregion() string {
     return r
 }
 
-// sa: login page
-func sa_login(w http.ResponseWriter, r *http.Request) {
+// sa handler returns a template for web based authentication
+func sa(w http.ResponseWriter, r *http.Request) {
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     ret := r.URL.Query().Get("ret")
 
-    // sanity check
-    if s.is_logged_in || s.is_unregistered {
-        w.WriteHeader(http.StatusBadRequest)
-        return
+    if err := templates["auth"].Execute(w, Page{
+        Session: s,
+        Root: cnf.Root,
+        Region: s.getregion(),
+        Return: ret,
+    }); err != nil {
+        errorlog.Printf("while executing template: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
     }
-    
-    switch ret {
-    case "error":
-        w.Write([]byte("<html><head></head><body>an error occurred</body></html>"))
-        return
-    case "invalid":
-        w.Write([]byte("<html><head></head><body>invalid password</body><html>"))
-        return
-    }
-    
-    w.Write([]byte(`<html><head><meta name="uppertitle" content="login page"></head><body>welcome<br>enter your password here:<br><br><a href="http://`+cnf.Root+`/ds/v2-`+s.getregion()+`/sa/login.kbd">keyboard</a></body></html>`))
 }
 
+// sa_login_kbd handler takes the input from a keyboard POST and checks if the password is correct for the user
 func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
     in := r.Header.Get("X-Email-Addr")
     
     // sanity check
-    if s.is_unregistered || s.is_logged_in {
+    if s.IsUnregistered || s.IsLoggedIn {
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     
-    if v, err := verifyUserDsi(s.userid, in); err != nil {
+    if v, err := verifyUserDsi(s.UserID, in); err != nil {
         // handle error
-        errorlog.Printf("while verifying user %d, %v", s.userid, err)
-        w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=error"}
+        errorlog.Printf("while verifying user %d, %v", s.UserID, err)
+        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
         return
     } else if !v {
-        w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/login.htm?ret=invalid"}
+        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=invalid")}
         return
     }
 
-    if err := updateUserLastLogin(s.userid, s.ip); err != nil {
+    if err := updateUserLastLogin(s.UserID, s.IP); err != nil {
         errorlog.Printf("while updating last login ip: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
-    s.is_logged_in = true
+    s.IsLoggedIn = true
     sessions[sid] = s
 
-    w.Header()["X-DSi-Forwarder"] = []string{"http://" + cnf.Root + "/ds/v2-" + s.getregion() + "/sa/success.htm"}
+    w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
     w.WriteHeader(http.StatusOK)
 }
 
-// sa: successfully logged in/registered
-func sa_success(w http.ResponseWriter, r *http.Request) {
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
-
-    w.Write([]byte("<html><head></head><body>you have successfully logged in! (id " + strconv.Itoa(s.userid) + ")</body></html>"))
-}
-
-// sa: registration page
-func sa_reg(w http.ResponseWriter, r *http.Request) {
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
-    ret := r.URL.Query().Get("ret")
-    if !s.is_unregistered { // user must be unregistered
-        w.WriteHeader(http.StatusBadRequest)
-        return
-    }
-
-    switch ret {
-    case "error":
-        w.Write([]byte("<html><head></head><body>an error occurred</body></html>"))
-        return
-    }
-    
-    w.Write([]byte(`"<html><head><meta rel="stylesheet" href="http://` + cnf.Root + `/css/ds/basic.css"><meta name="uppertitle" content="registration"></head><body>welcome!<br>since you don't have a user account yet, you need to register<br><a href="http://` + cnf.Root + `/ds/v2-` + s.getregion() + `/sa/register.kbd">click here to register</a></body></html>`))
-}
-
+// sa_reg_kbd handler takes the input from a keyboard POST and registers the user
 func sa_reg_kbd(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
     in := r.Header.Get("X-Email-Addr")
-    if !s.is_unregistered { // user must be unregistered
+
+    if !s.IsUnregistered { // user must be unregistered
         w.WriteHeader(http.StatusBadRequest)
         return
     }
     
-    id, err := registerUserDsi(in, s.fsid, s.ip)
+    id, err := registerUserDsi(s.Username, in, s.FSID, s.IP)
     if err != nil {
-        w.Header()["X-DSi-Forwarder"] = []string{ub(s.getregion(), "sa/register.htm?ret=error")}
+        debuglog.Printf("while registering user: %v", err)
+        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=error")}
         return
     }
 
-    s.userid = id
-    s.is_unregistered = false
-    s.is_logged_in = true
+    s.UserID = id
+    s.IsUnregistered = false
+    s.IsLoggedIn = true
 
     sessions[sid] = s
 
-    w.Header()["X-DSi-Forwarder"] = []string{ub(s.getregion(), "sa/success.htm")}
+    w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
     w.WriteHeader(http.StatusOK)
 }

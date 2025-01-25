@@ -1,20 +1,21 @@
+<!-- needs a lot of TLC -->
 <html>
 <head>
-<meta name="upperlink" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/movie/{{.MovieID}}.ppm">
-<link rel="stylesheet" href="http://{{.Page.Root}}/css/ds/basic.css">
+<meta name="upperlink" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
+<link rel="stylesheet" href="http://{{.Root}}/css/ds/basic.css">
 
-{{if .LoggedIn}}
-<meta name="commentherebutton" content="http://{{.Page.Root}}/ds/v2-{{.Page.Region}}/comment/{{.MovieID}}.reply">
+{{if .Session.IsLoggedIn}}
+<meta name="commentherebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/comment/{{.Movie.ID}}.reply">
 {{end}}
 </head>
 
 <body>
 <table>
 {{range .Comments}}
-{{if .Is_memo}}
+{{if .IsMemo}}
 <tr>
-<td>{{.Userid}}</td>
-<td><img src="http://{{$.Page.Root}}/ds/v2-{{$.Page.Region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
+<td>{{.UserID}}</td>
+<td><img src="http://{{$.Root}}/ds/v2-{{$.Region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
 </tr>
 {{end}}
 {{end}}
