@@ -306,7 +306,7 @@ func eula(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     txt := vars["txt"]
 
-    text, err := os.ReadFile(fmt.Sprintf("%s/static/txt/%s.txt", cnf.StoreDir, txt))
+    text, err := os.ReadFile(fmt.Sprintf("%s/static/txt/%s.txt", cnf.Dir, txt))
     if err != nil {
         warnlog.Printf("failed to read %v: %v", txt, err)
         text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
@@ -494,9 +494,9 @@ func misc(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-// static handler returns the file from cnf.StoreDir/static/path
+// static handler returns the file from cnf.Dir/static/path
 func static(w http.ResponseWriter, r *http.Request) {
-    file, err := os.ReadFile(fmt.Sprintf("%s/static/%s", cnf.StoreDir, r.URL.Path))
+    file, err := os.ReadFile(fmt.Sprintf("%s/static/%s", cnf.Dir, r.URL.Path))
     if  err != nil {
         w.WriteHeader(http.StatusNotFound)
         return

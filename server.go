@@ -138,7 +138,7 @@ func main() {
     // connect to db
     cs := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
     
-    db, err := sql.Open("postgres", cs)
+    db, err = sql.Open("postgres", cs)
     if err != nil {
         errorlog.Fatalf("could not connect to database: %v", err)
     }
@@ -209,8 +209,8 @@ func main() {
 
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(moviePost, false, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info|dl)}").Methods("GET").HandlerFunc(dsi_am(movieHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?dl)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(dsi_am(movieHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:dl)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, true, false))
 
     // stars
