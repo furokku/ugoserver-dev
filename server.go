@@ -248,7 +248,7 @@ func main() {
         infolog.Printf("started http server")
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
-            errorlog.Fatalf("server error: %v", err)
+            errorlog.Printf("server error: %v", err)
         }
     }()
 

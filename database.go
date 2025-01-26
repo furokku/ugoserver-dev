@@ -41,7 +41,7 @@ const (
     
     SQL_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
     SQL_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
-    SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, reason, message, affected) VALUES ($1, $2, $3, $4, $5)"
+    SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, message, affected) VALUES ($1, $2, $3, $4)"
     SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
     SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
@@ -298,7 +298,7 @@ func queryBan(affected string) (bool, restriction, error) {
 }
 
 // issueBan() issues a ban onto a specific IP/FSID, optionally not banning if another ban has not yet expired
-func issueBan(iss string, exp time.Time, affected string, r string, msg string, ce bool) error {
+func issueBan(iss string, exp time.Time, affected string, msg string, ce bool) error {
     if ce {
         if b, err := checkIsBanned(affected); err != nil {
             return err
@@ -307,10 +307,10 @@ func issueBan(iss string, exp time.Time, affected string, r string, msg string, 
         }
     }
 
-    if _, err := db.Exec(SQL_BAN_ISSUE, iss, exp, r, msg, affected); err != nil {
+    if _, err := db.Exec(SQL_BAN_ISSUE, iss, exp, msg, affected); err != nil {
         return err
     }
-    infolog.Printf("%v banned %v until %v for %v (%v)", iss, affected, exp, r, msg)
+    infolog.Printf("%v banned %v until %v for %v", iss, affected, exp, msg)
     return nil
 }
 

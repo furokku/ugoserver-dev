@@ -380,7 +380,7 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    infolog.Printf("%v (%v) uploaded flipnote %v", qd(s.Username), s.FSID, fn)
+    infolog.Printf("%v (%v) uploaded flipnote %v", s.Username, s.FSID, fn)
     w.WriteHeader(http.StatusOK)
 }
 
