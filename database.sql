@@ -19,7 +19,7 @@ CREATE TABLE movies(
     author_userid INT NOT NULL REFERENCES users(id),
     author_fsid VARCHAR(16) NOT NULL,
     author_name TEXT NOT NULL,
-    author_filename VARCHAR(24) UNIQUE NOT NULL,
+    author_filename VARCHAR(24) NOT NULL,
     uploaded TIMESTAMPTZ DEFAULT now(),
     views INT DEFAULT 0,
     downloads INT DEFAULT 0,

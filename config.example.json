@@ -19,7 +19,7 @@
     },
 
     "_comment_d": "specify hosts that the server will accept requests from. Used to weed out bots",
-    "use_allowed_hosts": "false",
+    "use_allowed_hosts": false,
     "hosts": [
         "flipnote.hatena.com",
         "ugomemo.hatena.ne.jp",
