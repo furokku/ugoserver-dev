@@ -217,7 +217,7 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
         }
         base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/movie/%d.ppm", f.ID), 3, "", f.Ys, 765, 573, 0)
 
-        base.EmbedBytes = append(base.EmbedBytes, t)
+        base.addEmbed(t)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 

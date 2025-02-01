@@ -236,6 +236,7 @@ func main() {
     // static content
     h.PathPrefix("/images").HandlerFunc(static)
     h.PathPrefix("/css").HandlerFunc(static)
+    h.Path("/robots.txt").HandlerFunc(static)
     
     // Planned, maybe
     h.PathPrefix("/api/v1").HandlerFunc(api)
