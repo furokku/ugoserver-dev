@@ -26,7 +26,6 @@ package main
 // Build channels menu automatically
 // Creator's room
 // Documentation
-// Rate limit
 // Inform the user when the session expires within flipnote studio
 // CLI tool for things like whitelist, channels, bans, etc.
 

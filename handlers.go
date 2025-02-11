@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"time"
 
 	"fmt"
 
@@ -26,6 +27,10 @@ import (
 
 var (
     modes = map[string]string{"new": "Recent flipnotes"}
+)
+
+const (
+    MSG_MOVIE_RATELIMIT string = "rate limit message: %s"
 )
 
 // movieHandler handler is responsible for returning .ppm files, building web pages for viewing
@@ -332,6 +337,16 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
 
     // validation is done by middleware
     s := sessions[r.Header.Get("X-Dsi-Sid")]
+    
+    if rl, d, err := getUserMovieRatelimit(s.UserID); err != nil {
+        errorlog.Printf("while checking user ratelimit: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    } else if rl {
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE(fmt.Sprintf(MSG_MOVIE_RATELIMIT, time.Until(d).String() )))
+        return
+    }
 
     ppm, err := io.ReadAll(r.Body)
     if err != nil {

@@ -17,8 +17,8 @@ const (
     SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1 AND deleted = false) AS \"EXISTS\""
 
     SQL_MOVIE_GET_BY_ID string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1) SELECT movie.*, yst, gst, rst, bst, pst, replies.c FROM movie, replies, get_movie_stars($1)"
-    SQL_MOVIE_GET_NEW string = "WITH filtered AS (SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY uploaded DESC LIMIT 50 OFFSET ($1-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false) SELECT filtered.*, total.t FROM filtered, total"
-    SQL_MOVIE_GET_CHANNEL_NEW string = "WITH filtered AS (SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false AND channelid = $1 ORDER BY uploaded DESC LIMIT 50 OFFSET ($2-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false AND channelid = $1) SELECT filtered.*, total.t FROM filtered, total"
+    SQL_MOVIE_GET_NEW string = "WITH filtered AS (SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY posted DESC LIMIT 50 OFFSET ($1-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false) SELECT filtered.*, total.t FROM filtered, total"
+    SQL_MOVIE_GET_CHANNEL_NEW string = "WITH filtered AS (SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false AND channelid = $1 ORDER BY posted DESC LIMIT 50 OFFSET ($2-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false AND channelid = $1) SELECT filtered.*, total.t FROM filtered, total"
 
     SQL_MOVIE_UPDATE_DL string = "UPDATE movies SET downloads = downloads + 1 WHERE id = $1 AND deleted = false"
     SQL_MOVIE_UPDATE_VIEWS string = "UPDATE movies SET views = views + 1 WHERE id = $1 AND deleted = false"
@@ -50,6 +50,7 @@ const (
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
     SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users SET last_login_ip = $2 WHERE id = $1"
     SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1"
+    SQL_USER_RATELIMIT string = "SELECT * FROM get_user_movie_ratelimit($1)"
 
     SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret)) AS \"EXISTS\""
     SQL_APITOKEN_REGISTER string = "INSERT INTO apitokens (userid, secret) VALUES ($1, crypt($2, gen_salt('bf')))"
@@ -247,6 +248,17 @@ func checkMovieExistsAfn(afn string) (bool, error) {
     }
 
     return exists, nil
+}
+
+//
+func getUserMovieRatelimit(userid int) (bool, time.Time, error) {
+    var d sql.NullTime
+    
+    if err := db.QueryRow(SQL_USER_RATELIMIT, userid).Scan(&d); err != nil {
+        return false, time.Time{}, err
+    }
+    
+    return d.Valid, d.Time, nil
 }
 
 // whitelistAddFsid() adds an FSID to the auth whitelist, so that it immediately passes validation

@@ -20,7 +20,7 @@ CREATE TABLE movies(
     author_fsid VARCHAR(16) NOT NULL,
     author_name TEXT NOT NULL,
     author_filename VARCHAR(24) NOT NULL,
-    uploaded TIMESTAMPTZ DEFAULT now(),
+    posted TIMESTAMPTZ DEFAULT now(),
     views INT DEFAULT 0,
     downloads INT DEFAULT 0,
     lock BOOL DEFAULT FALSE,
@@ -63,9 +63,26 @@ CREATE TABLE user_star(
     bs INT DEFAULT 0,
     ps INT DEFAULT 0
 );
-CREATE FUNCTION get_movie_stars(memoid INT) RETURNS TABLE (yst BIGINT, gst BIGINT, rst BIGINT, bst BIGINT, pst BIGINT) AS $BODY$
+
+CREATE FUNCTION get_movie_stars(movieid INT) RETURNS TABLE (yst BIGINT, gst BIGINT, rst BIGINT, bst BIGINT, pst BIGINT) AS $$
+    RETURN QUERY SELECT coalesce(sum(ys), 0), coalesce(sum(gs), 0), coalesce(sum(rs), 0), coalesce(sum(bs), 0), coalesce(sum(ps), 0) FROM user_star WHERE user_star.movieid = get_movie_stars.movieid;
+$$ STABLE LANGUAGE plpgsql;
+
+CREATE FUNCTION get_user_movie_ratelimit(userid INT, OUT until TIMESTAMPTZ) AS $$
+DECLARE
+    latest TIMESTAMPTZ;
+    total INT = 0;
 BEGIN
-    RETURN QUERY SELECT coalesce(sum(ys), 0), coalesce(sum(gs), 0), coalesce(sum(rs), 0), coalesce(sum(bs), 0), coalesce(sum(ps), 0) FROM user_star WHERE user_star.movieid = $1;
+    WITH l AS (
+        SELECT posted, count(*) OVER (), row_number() OVER (ORDER BY posted DESC) AS rn FROM movies WHERE author_userid = userid AND posted > now() - interval '30 minutes'
+    )
+    SELECT posted, count INTO latest, total FROM l WHERE rn = count;
+
+    IF total >= 5 THEN
+        until := latest + interval '30 minutes';
+    ELSE
+        until := NULL;
+    END IF;
 END;
-$BODY$ STABLE LANGUAGE plpgsql;
+$$ STABLE LANGUAGE plpgsql;
 COMMIT;

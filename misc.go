@@ -119,7 +119,7 @@ func nasEncode(data any) string {
 }
 
 // encUTF16LE() converts utf8 bytes to utf16le
-// labels, messages in flipnote studio require to be represented in utf16le
+// most if not all visible text in Flipnote Studio should be in UTF-16LE
 func encUTF16LE(data any) []byte {
     var encoded []byte
     var err error
