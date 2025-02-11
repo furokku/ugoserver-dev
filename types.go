@@ -28,6 +28,9 @@ type (
         quit     chan interface{}
         wg       sync.WaitGroup
     }
+    
+    cmdHandlerFunc func([]string) string // Handler for IPC commands
+    cmdHandler map[string]cmdHandlerFunc
 
     // Wrap responsewriter in order to log http requests and reponses
     rwWrapper struct {

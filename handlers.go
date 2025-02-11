@@ -33,6 +33,10 @@ const (
     MSG_MOVIE_RATELIMIT string = "rate limit message: %s"
 )
 
+// 
+// HTTP HANDLERS
+//
+
 // movieHandler handler is responsible for returning .ppm files, building web pages for viewing
 // a movie's details and comments, and returning a few bytes on .info requests
 func movieHandler(w http.ResponseWriter, r *http.Request) {
@@ -540,4 +544,12 @@ func debug(w http.ResponseWriter, r *http.Request) {
         errorlog.Printf("while executing template: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
     }
+}
+
+
+//
+// CLI HANDLERS
+//
+
+func whitelist([]string) string {
 }

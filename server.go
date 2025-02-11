@@ -147,16 +147,6 @@ func main() {
 
     infolog.Printf("connected to database")
     defer db.Close()
-    
-
-    // start unix socket for ipc
-    // curious how this works on windows
-    os.RemoveAll(SOCKET_FILE)
-    ipcS := newIpcListener(SOCKET_FILE)
-    infolog.Printf("started unix socket listener")
-
-    defer ipcS.stop()
-
 
     // start a thread to remove old, expired sessions
     // the time for a session to expire is 2 hours
@@ -243,7 +233,7 @@ func main() {
 
     hatena := &http.Server{Addr: cnf.Listen + ":9000", Handler: h}
 
-    // start on separate thread
+    // start web server
     go func() {
         infolog.Printf("started http server")
         err := hatena.ListenAndServe()
@@ -251,6 +241,15 @@ func main() {
             errorlog.Printf("server error: %v", err)
         }
     }()
+
+    // start unix socket for ipc
+    // curious how this works on windows
+    os.RemoveAll(SOCKET_FILE)
+    ch := newCmdHandler()
+
+    ipcS := newIpcListener(SOCKET_FILE, *ch)
+    infolog.Printf("started unix socket listener")
+    defer ipcS.stop()
 
     // wait and do a graceful exit on ctrl-c / sigterm
     sig := <- sigs

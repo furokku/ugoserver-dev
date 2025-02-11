@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"strings"
 )
 
-func newIpcListener(sf string) *ipcListener {
+func newIpcListener(sf string, c cmdHandler) *ipcListener {
     s := &ipcListener{
         quit: make(chan interface{}),
     }
@@ -17,8 +16,18 @@ func newIpcListener(sf string) *ipcListener {
     }
     s.listener = l
     s.wg.Add(1)
-    go s.serve()
+    go s.serve(c)
     return s
+}
+
+func newCmdHandler() *cmdHandler {
+    c := make(cmdHandler) // Not really a handler in the true sense
+    
+    return &c
+}
+
+func (c cmdHandler) register(n string, h cmdHandlerFunc) {
+    c[n] = h
 }
 
 func (s *ipcListener) stop() {
@@ -27,7 +36,7 @@ func (s *ipcListener) stop() {
     s.wg.Wait()
 }
 
-func (s *ipcListener) serve() {
+func (s *ipcListener) serve(c cmdHandler) {
     defer s.wg.Done()
 
     for {
@@ -42,14 +51,14 @@ func (s *ipcListener) serve() {
         } else {
             s.wg.Add(1)
             go func() {
-                ipc(conn)
+                ipc(conn, c)
                 s.wg.Done()
             }()
         }
     }
 }
 
-func ipc(conn net.Conn) {
+func ipc(conn net.Conn, c cmdHandler) {
     defer conn.Close()
 
     buf := make([]byte, 4096)
@@ -57,29 +66,18 @@ func ipc(conn net.Conn) {
     for {
         n, err := conn.Read(buf)
         if err != nil && err != io.EOF {
-            errorlog.Printf("read error %v", err)
+            errorlog.Printf("ipc: read error: %v", err)
             return
         }
         if n == 0 {
             return
         }
         req := string(buf[:n])
-        resp := cmd(req)
+
+        args := strings.Split(req, " ")
+        resp := c[args[0]](args[1:]) // Bit of madness here, but I think it should work
+
         infolog.Printf("cmd: %v", req)
         io.WriteString(conn, resp)
-    }
-}
-
-func cmd(r string) string {
-    args := strings.Split(r, " ")
-
-    switch args[0] {
-    case "test":
-        if len(args) < 5 {
-            return fmt.Sprintf("expected 5 arguments; got %d: %v", len(args), args)
-        }
-        return "big day"
-    default:
-        return "invalid command"
     }
 }

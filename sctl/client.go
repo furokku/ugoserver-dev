@@ -27,7 +27,7 @@ func main() {
 
     io.WriteString(conn, cmd)
 
-    buf := make([]byte, 1048576)
+    buf := make([]byte, 1048576) // read at most 1MiB, this should never be too little
     n, err := conn.Read(buf)
     if err != nil && err != io.EOF {
         panic(err)
