@@ -39,10 +39,16 @@ func (rw *rwWrapper) WriteHeader(code int) {
 // logger is middleware to log all HTTP requests and responses
 func logger(next http.Handler) http.Handler {
     fn := func(w http.ResponseWriter, r *http.Request) {
+        ua := r.Header.Get("User-Agent")
+
         // ignore bots and etc.
-        if cnf.UseHosts && !slices.Contains(cnf.Hosts, r.Host) && r.URL.Path != "/robots.txt" {
-            w.Write([]byte("you may not access this resource in this way"))
-            return
+        if cnf.UseHosts && r.URL.Path != "/robots.txt" {
+            if !slices.Contains(cnf.Hosts, r.Host) ||
+               (r.Host != "nas.nintendowifi.net" &&
+               ua != "") {
+                w.Write([]byte("you may not access this resource in this way"))
+                return
+            }
         }
         //log request
         reqlog.Printf("%v %v %v%v // %v", r.Header.Get("X-Real-Ip"), r.Method, r.Host, r.RequestURI, r.Header)

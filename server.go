@@ -177,8 +177,9 @@ func main() {
     h.Path("/ds/notices.lst").Methods("GET").HandlerFunc(misc)
 
     // NAS
-    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
-    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+    // filter with the user agent
+    h.Path("/ac").Headers("User-Agent", "Nitro WiFi SDK/5.1").Methods("POST").HandlerFunc(nasAuth)
+    h.Path("/pr").Headers("User-Agent", "Nitro WiFi SDK/5.1").Methods("POST").HandlerFunc(nasAuth)
 
     // rev3 auth
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
