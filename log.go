@@ -44,8 +44,7 @@ func logger(next http.Handler) http.Handler {
         // ignore bots and etc.
         if cnf.UseHosts && r.URL.Path != "/robots.txt" {
             if !slices.Contains(cnf.Hosts, r.Host) ||
-               (r.Host != "nas.nintendowifi.net" &&
-               ua != "") {
+               (ua != "" && ua != "Nitro WiFi SDK/5.1") {
                 w.Write([]byte("you may not access this resource in this way"))
                 return
             }
