@@ -65,7 +65,9 @@ CREATE TABLE user_star(
 );
 
 CREATE FUNCTION get_movie_stars(movieid INT) RETURNS TABLE (yst BIGINT, gst BIGINT, rst BIGINT, bst BIGINT, pst BIGINT) AS $$
+BEGIN
     RETURN QUERY SELECT coalesce(sum(ys), 0), coalesce(sum(gs), 0), coalesce(sum(rs), 0), coalesce(sum(bs), 0), coalesce(sum(ps), 0) FROM user_star WHERE user_star.movieid = get_movie_stars.movieid;
+END;
 $$ STABLE LANGUAGE plpgsql;
 
 CREATE FUNCTION get_user_movie_ratelimit(userid INT, OUT until TIMESTAMPTZ) AS $$
