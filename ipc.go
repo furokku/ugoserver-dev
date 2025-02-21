@@ -62,6 +62,7 @@ func ipc(conn net.Conn, c cmdHandler) {
     defer conn.Close()
 
     buf := make([]byte, 4096)
+    var resp string
 
     for {
         n, err := conn.Read(buf)
@@ -75,8 +76,17 @@ func ipc(conn net.Conn, c cmdHandler) {
         req := string(buf[:n])
 
         args := strings.Split(req, " ")
-        resp := c[args[0]](args[1:]) // Bit of madness here, but I think it should work
+        if len(args) <= 1 {
+            resp = "expected parameter after " + args[0]
+        } else {
+            f, ok := c[args[0]]
+            if !ok {
+                resp = "unknown command " + args[0]
+            } else {
+                resp = f(args[1:])
+            }
 
+        }
         infolog.Printf("cmd: %v", req)
         io.WriteString(conn, resp)
     }

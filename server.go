@@ -239,13 +239,17 @@ func main() {
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
             errorlog.Printf("server error: %v", err)
+            sigs <- os.Interrupt
         }
     }()
 
     // start unix socket for ipc
     // curious how this works on windows
     os.RemoveAll(SOCKET_FILE)
+
+    // cli commands
     ch := newCmdHandler()
+    ch.register("whitelist", whitelist)
 
     ipcS := newIpcListener(SOCKET_FILE, *ch)
     infolog.Printf("started unix socket listener")

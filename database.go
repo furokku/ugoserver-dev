@@ -39,10 +39,10 @@ const (
     SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE userfsid = $1"
     SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE userfsid = $1) AS \"EXISTS\""
     
-    SQL_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
-    SQL_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
-    SQL_BAN_ISSUE string = "INSERT INTO bans (issuer, expires, message, affected) VALUES ($1, $2, $3, $4)"
-    SQL_BAN_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
+    SQL_USER_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
+    SQL_USER_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
+    SQL_USER_BAN string = "INSERT INTO bans (issuer, expires, message, affected) VALUES ($1, $2, $3, $4)"
+    SQL_USER_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
     SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
@@ -290,7 +290,7 @@ func whitelistQueryFsid(fsid string) (bool, error) {
 // checkIsBanned() checks whether an IP/FSID is banned and returns true/false
 func checkIsBanned(affected string) (bool, error) {
     var exists bool
-    err := db.QueryRow(SQL_BAN_CHECK, affected).Scan(&exists)
+    err := db.QueryRow(SQL_USER_BAN_CHECK, affected).Scan(&exists)
     if err != nil {
         return false, err
     }
@@ -300,7 +300,7 @@ func checkIsBanned(affected string) (bool, error) {
 // queryBan() checks whether an IP/FSID is banned and returns all information about the ban
 func queryBan(affected string) (bool, restriction, error) {
     b := restriction{}
-    err := db.QueryRow(SQL_BAN_QUERY, affected).Scan(&b.banid, &b.issuer, &b.issued, &b.expires, &b.message, &b.pardon, &b.affected)
+    err := db.QueryRow(SQL_USER_BAN_QUERY, affected).Scan(&b.banid, &b.issuer, &b.issued, &b.expires, &b.message, &b.pardon, &b.affected)
     if err == sql.ErrNoRows {
         return false, restriction{}, nil
     } else if err != nil {
@@ -319,7 +319,7 @@ func issueBan(iss string, exp time.Time, affected string, msg string, ce bool) e
         }
     }
 
-    if _, err := db.Exec(SQL_BAN_ISSUE, iss, exp, msg, affected); err != nil {
+    if _, err := db.Exec(SQL_USER_BAN, iss, exp, msg, affected); err != nil {
         return err
     }
     infolog.Printf("%v banned %v until %v for %v", iss, affected, exp, msg)
@@ -328,7 +328,7 @@ func issueBan(iss string, exp time.Time, affected string, msg string, ce bool) e
 
 // pardonBanId() will pardon a ban by its ID
 func pardonBanId(banid int) error {
-    if _, err := db.Exec(SQL_BAN_PARDON_BY_ID, banid); err != nil {
+    if _, err := db.Exec(SQL_USER_PARDON_BY_ID, banid); err != nil {
         return err
     }
     return nil

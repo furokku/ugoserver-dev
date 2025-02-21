@@ -19,6 +19,7 @@ import (
 
 	"encoding/binary"
 	"encoding/hex"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,10 @@ import (
 
 var (
     modes = map[string]string{"new": "Recent flipnotes"}
+    
+    fsid_match = regexp.MustCompile("^[0159]{1}[0-9A-F]{15}$")
+    ip_match = regexp.MustCompile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\b){4}$")
+    fn_match = regexp.MustCompile("^[0-9A-F]{6}_[0-9A-F]{13}_[0-9]{3}$")
 )
 
 const (
@@ -363,8 +368,15 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
     name := string(stripnull(decUTF16LE(ppm[0x40 : 0x56])))
     l := int(ppm[0x10])
     fn := strings.ToUpper(hex.EncodeToString(ppm[0x78 : 0x7B])) + "_" +
-                string(ppm[0x7B : 0x88]) + "_" +
-                editCountPad(binary.LittleEndian.Uint16(ppm[0x88 : 0x90]))
+        string(ppm[0x7B : 0x88]) + "_" +
+        editCountPad(binary.LittleEndian.Uint16(ppm[0x88 : 0x90]))
+                
+    if !fsid_match.MatchString(fsid) || !fn_match.MatchString(fn) {
+        warnlog.Printf("%s (%d) tried to upload malformed movie", s.Username, s.UserID)
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE("an error occurred"))
+        return
+    }
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
 
@@ -551,5 +563,67 @@ func debug(w http.ResponseWriter, r *http.Request) {
 // CLI HANDLERS
 //
 
-func whitelist([]string) string {
+func whitelist(args []string) string {
+    
+    params := args[1:]
+    p := len(params)
+    
+    switch args[0] {
+    case "add":
+        if p != 1 {
+            return fmt.Sprintf("whitelist add: expected 1 parameter, found %d", p)
+        }
+        
+        fsid := params[0]
+
+        if !fsid_match.MatchString(fsid) {
+            return fmt.Sprintf("whitelist add: '%s' is not a valid fsid", fsid)
+        }
+        
+        if err := whitelistAddFsid(fsid); err != nil {
+            errorlog.Printf("while adding fsid to whitelist: %v", err)
+            return fmt.Sprintf("whitelist add: %v", err)
+        }
+        
+        return fmt.Sprintf("whitelist: added %s", fsid)
+
+    case "del":
+        if p != 1 {
+            return fmt.Sprintf("whitelist del: expected 1 parameter, found %d", p)
+        }
+        
+        fsid := params[0]
+        
+        if !fsid_match.MatchString(fsid) {
+            return fmt.Sprintf("whitelist del: '%s' is not a valid fsid", fsid)
+        }
+        
+        if err := whitelistDelFsid(fsid); err != nil {
+            errorlog.Printf("while removing fsid from whitelist: %v", err)
+            return fmt.Sprintf("whitelist del: %v", err)
+        }
+        
+        return fmt.Sprintf("whitelist: remove %s", fsid)
+        
+    case "query":
+        if p != 1 {
+            return fmt.Sprintf("whitelist query: expected 1 parameter, found %d", p)
+        }
+        
+        fsid := params[0]
+
+        if !fsid_match.MatchString(fsid) {
+            return fmt.Sprintf("whitelist query: '%s' is not a valid fsid", fsid)
+        }
+        
+        if w, err := whitelistQueryFsid(fsid); err != nil {
+            errorlog.Printf("while querying whitelist: %v", err)
+            return fmt.Sprintf("whitelist query: %v", err)
+        } else {
+            return fmt.Sprintf("'%s' whitelisted: %v", fsid, w)
+        }
+        
+    default:
+        return "unknown action " + args[0]
+    }
 }
