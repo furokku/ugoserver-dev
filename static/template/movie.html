@@ -7,15 +7,15 @@
 <meta name="savebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
 
 {{if .Session.IsLoggedIn}}
-<meta name="starbutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star">
-<meta name="starbutton1" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/green,99">
-<meta name="starbutton2" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/red,99">
-<meta name="starbutton3" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/blue,99">
-<meta name="starbutton4" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/purple,99">
-{{end}}
-
 {{if eq .Session.UserID .Movie.AuUserID}}
 <meta name="deletebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.delete">
+{{else}}
+<meta name="starbutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star">
+<meta name="starbutton1" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/green,{{.ESgreen}}">
+<meta name="starbutton2" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/red,{{.ESred}}">
+<meta name="starbutton3" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/blue,{{.ESblue}}">
+<meta name="starbutton4" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/purple,{{.ESpurple}}">
+{{end}}
 {{end}}
 
 <meta name="playcontrolbutton" content="1">

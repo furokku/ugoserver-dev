@@ -1,0 +1,7 @@
+{
+    "layout": [4],
+
+    "items": [
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/debug.htm", "label": "bogus", "icon": 110}
+    ]
+}

@@ -76,8 +76,8 @@ func ipc(conn net.Conn, c cmdHandler) {
         req := string(buf[:n])
 
         args := strings.Split(req, " ")
-        if len(args) <= 1 {
-            resp = "expected parameter after " + args[0]
+        if len(args) == 0 {
+            resp = "ok"
         } else {
             f, ok := c[args[0]]
             if !ok {

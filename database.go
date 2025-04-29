@@ -14,7 +14,7 @@ const (
 
     SQL_MOVIE_ADD string = "INSERT INTO movies (author_userid, author_fsid, author_name, author_filename, lock, channelid) VALUES ($1, $2, $3, $4, $5, $6) RETURNING (id)"
     SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1"
-    SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1 AND deleted = false) AS \"EXISTS\""
+    SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1 AND deleted = false)"
 
     SQL_MOVIE_GET_BY_ID string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1) SELECT movie.*, yst, gst, rst, bst, pst, replies.c FROM movie, replies, get_movie_stars($1)"
     SQL_MOVIE_GET_NEW string = "WITH filtered AS (SELECT id, yst+gst+rst+bst+pst AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY posted DESC LIMIT 50 OFFSET ($1-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false) SELECT filtered.*, total.t FROM filtered, total"
@@ -23,36 +23,35 @@ const (
     SQL_MOVIE_UPDATE_DL string = "UPDATE movies SET downloads = downloads + 1 WHERE id = $1 AND deleted = false"
     SQL_MOVIE_UPDATE_VIEWS string = "UPDATE movies SET views = views + 1 WHERE id = $1 AND deleted = false"
     
+    SQL_CHANNEL_GET_MAIN string = "SELECT id, desc_s FROM channels ORDER BY id ASC LIMIT 8"
+    SQL_CHANNEL_GET_MORE string = "SELECT id, desc_s FROM channels ORDER BY id ASC OFFSET 8"
     SQL_CHANNEL_GET_DESC_BY_ID string = "SELECT desc_s, desc_l FROM channels WHERE id = $1"
 
-    SQL_MOVIE_UPDATE_STAR_YELLOW string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS ys) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ys = target.ys + source.ys WHEN NOT MATCHED THEN INSERT (userid, movieid, ys) VALUES (source.userid, source.movieid, source.ys)"
-    SQL_MOVIE_UPDATE_STAR_GREEN string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS gs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET gs = target.gs + source.gs WHEN NOT MATCHED THEN INSERT (userid, movieid, gs) VALUES (source.userid, source.movieid, source.gs)"
-    SQL_MOVIE_UPDATE_STAR_RED string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS rs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET rs = target.rs + source.rs WHEN NOT MATCHED THEN INSERT (userid, movieid, rs) VALUES (source.userid, source.movieid, source.rs)"
-    SQL_MOVIE_UPDATE_STAR_BLUE string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS bs) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET bs = target.bs + source.bs WHEN NOT MATCHED THEN INSERT (userid, movieid, bs) VALUES (source.userid, source.movieid, source.bs)"
-    SQL_MOVIE_UPDATE_STAR_PURPLE string = "MERGE INTO user_star AS target USING (SELECT CAST($1 AS INTEGER) AS userid, CAST($2 AS INTEGER) AS movieid, CAST($3 AS INTEGER) AS ps) AS source ON target.userid = source.userid AND target.movieid = source.movieid WHEN MATCHED THEN UPDATE SET ps = target.ps + source.ps WHEN NOT MATCHED THEN INSERT (userid, movieid, ps) VALUES (source.userid, source.movieid, source.ps)"
-    
+    SQL_MOVIE_UPDATE_STARS string = "SELECT update_movie_stars($1, $2, $3, $4)"
+    SQL_USER_GET_EXPENDABLE_STARS string = "SELECT expendable_stars[2:5] FROM users WHERE id = $1"
+
     SQL_MOVIE_ADD_COMMENT_MEMO string = "INSERT INTO comments (userid, movieid) VALUES ($1, $2) RETURNING (id)" // only need to imply about its existence
     SQL_MOVIE_ADD_COMMENT_TEXT string = "INSERT INTO comments (userid, movieid, is_memo, content) VALUES ($1, $2, false, $3)"
     SQL_MOVIE_GET_COMMENT string = "SELECT comments.*, users.username FROM comments JOIN users ON comments.userid = users.id WHERE movieid = $1 ORDER BY posted DESC LIMIT 10 OFFSET ($2-1)*10"
     
     SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (userfsid) VALUES ($1)"
     SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE userfsid = $1"
-    SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE userfsid = $1) AS \"EXISTS\""
+    SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE userfsid = $1)"
     
-    SQL_USER_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1) AS \"EXISTS\""
+    SQL_USER_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1)"
     SQL_USER_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
     SQL_USER_BAN string = "INSERT INTO bans (issuer, expires, message, affected) VALUES ($1, $2, $3, $4)"
     SQL_USER_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
     SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
     SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
-    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password)) AS \"EXISTS\""
-    SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1) AS \"EXISTS\""
+    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password))"
+    SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1)"
     SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users SET last_login_ip = $2 WHERE id = $1"
     SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1"
-    SQL_USER_RATELIMIT string = "SELECT * FROM get_user_movie_ratelimit($1)"
+    SQL_USER_RATELIMIT string = "SELECT * FROM get_user_ratelimit($1)"
 
-    SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret)) AS \"EXISTS\""
+    SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret))"
     SQL_APITOKEN_REGISTER string = "INSERT INTO apitokens (userid, secret) VALUES ($1, crypt($2, gen_salt('bf')))"
     SQL_APITOKEN_VERIFY string = "SELECT userid FROM apitokens WHERE expires > now() AND secret = crypt($1, apitokens.secret)"
 )
@@ -200,23 +199,34 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
     return comments, nil
 }
 
+// getUserStars() gets a user's available color stars
+func getUserExpendableStars(userid int) ([]int, error) {
+    s := make([]int, 4)
+    
+    if err := db.QueryRow(SQL_USER_GET_EXPENDABLE_STARS, userid).Scan(&s); err != nil {
+        return nil, err
+    }
+    
+    return s, nil
+}
+
 // updateMovieStars() updates the database about stars added to a movie
 func updateMovieStars(userid int, movieid int, color string, count int) error {
-    var q string
+    var c int
     switch color {
     case "yellow":
-        q = SQL_MOVIE_UPDATE_STAR_YELLOW
+        c = 1
     case "green":
-        q = SQL_MOVIE_UPDATE_STAR_GREEN
+        c = 2
     case "red":
-        q = SQL_MOVIE_UPDATE_STAR_RED
+        c = 3
     case "blue":
-        q = SQL_MOVIE_UPDATE_STAR_BLUE
+        c = 4
     case "purple":
-        q = SQL_MOVIE_UPDATE_STAR_PURPLE
+        c = 5
     }
 
-    if _, err := db.Exec(q, userid, movieid, count); err != nil {
+    if _, err := db.Exec(SQL_MOVIE_UPDATE_STARS, userid, movieid, c, count); err != nil {
         return err
     }
     

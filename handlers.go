@@ -96,8 +96,6 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "htm":
-        mode := r.URL.Query().Get("mode")
-
         // make it return a 404 if not found
         movie, err := getMovieSingle(id)
         if err == ErrNoMovie {
@@ -107,39 +105,6 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             errorlog.Printf("while getting flipnote %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
-        }
-
-        // comments
-        if mode == "comment" {
-            pq := r.URL.Query().Get("page")
-            p, err := strconv.Atoi(pq)
-            if pq == "" {
-                // do NOT print error message if the query is empty
-                p = 1
-            } else if err != nil {
-                infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
-                w.WriteHeader(http.StatusBadRequest)
-                return
-            }
-            
-            comments, err := getMovieComments(id, p)
-            if err != nil {
-                errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
-                w.WriteHeader(http.StatusInternalServerError)
-                return
-            }
-            
-            if err = templates["comment"].Execute(w, Page{
-                Session: s,
-                Root: cnf.Root,
-                Region: s.getregion(),
-                Movie: movie,
-                Comments: comments,
-            }); err != nil {
-                errorlog.Printf("while executing template: %v", err)
-                w.WriteHeader(http.StatusInternalServerError)
-                return
-            }
         }
 
         if err = templates["movie"].Execute(w, Page{
@@ -159,6 +124,66 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
     default:
         w.WriteHeader(http.StatusNotFound)
         return
+    }
+}
+
+func replyHandler(w http.ResponseWriter, r *http.Request) {
+    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    vars := mux.Vars(r)
+
+    switch vars["ext"] {
+    case "npf":
+        id, err := strconv.Atoi(vars["replyid"])
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+        
+        // get the file
+        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, id))
+        if err != nil {
+            errorlog.Printf("while reading reply %d file: %v", id, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        w.Write(npf)
+        
+    case "htm":
+        id, err := strconv.Atoi(vars["movieid"])
+        if err != nil {
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+        pq := r.URL.Query().Get("page")
+        p, err := strconv.Atoi(pq)
+        if pq == "" {
+            // do NOT print error message if the query is empty
+            p = 1
+        } else if err != nil {
+            infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+        
+        comments, err := getMovieComments(id, p)
+        if err != nil {
+            errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        if err = templates["comment"].Execute(w, Page{
+            Session: s,
+            Root: cnf.Root,
+            Region: s.getregion(),
+            Movie: Movie{ID: id},
+            Comments: comments,
+        }); err != nil {
+            errorlog.Printf("while executing template: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
     }
 }
 
@@ -286,6 +311,7 @@ func movieChannelFeed(w http.ResponseWriter, r *http.Request) {
     // meta
     base.setTopScreenText(ds, fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "", dl)
     base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=1", id, mode), modes[mode], true)
+    // check is logged in
     base.addCorner(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/flipnote.post?channel=%d", id), "Post flipnote")
 
     if p > 1 {
@@ -415,95 +441,75 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
 }
 
-// movieReply handler handles requests for .npf (reply image data) and .reply (replying to a movie)
-func movieReply(w http.ResponseWriter, r *http.Request) {
+// replyPost handler handles requests for .npf (reply image data) and .reply (replying to a movie)
+func replyPost(w http.ResponseWriter, r *http.Request) {
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     v := mux.Vars(r)
 
-    switch v["ext"] {
-    case "npf":
-        commentid, err := strconv.Atoi(v["commentid"])
-        if err != nil {
-            w.WriteHeader(http.StatusNotFound)
-            return
-        }
-        
-        // get the file
-        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, commentid))
-        if err != nil {
-            errorlog.Printf("while reading reply %d file: %v", commentid, err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        w.Write(npf)
-
-    case "reply":
-        movieid, err := strconv.Atoi(v["movieid"])
-        if err != nil {
-            w.WriteHeader(http.StatusBadRequest)
-            return
-        }
-
-        // for now only memo replies from the ds
-        reply, err := io.ReadAll(r.Body)
-        if err != nil {
-            errorlog.Printf("while reading reply body: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        im, err := img.FromPpm(reply)
-        if err != nil {
-            errorlog.Printf("while decoding reply: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        // only one page flipnotes should be posted
-        // this is in case of a bad actor manually POSTing a custom ppm
-        if len(im) != 1 {
-            errorlog.Printf("multiple frames in comment memo from %v", s.UserID)
-            w.WriteHeader(http.StatusBadRequest)
-            return
-        }
-        
-        // Convert to npf
-        // Quantizer is needed because while downsizing the image it introduces lots of other colors
-        src := resize.Resize(64, 48, im[0], resize.NearestNeighbor)
-        dst := image.NewPaletted(src.Bounds(), palette.WebSafe)
-
-        colorquant.NoDither.Quantize(src, dst, 15, false, true)
-
-        npf, err := img.ToNpf(dst)
-        if err != nil {
-            errorlog.Printf("while converting reply to npf: %v", err)
-            return
-        }
-        
-        id, err := addMovieReplyMemo(s.UserID, movieid)
-        if err != nil {
-            errorlog.Printf("while adding movie reply to database: %v", err)
-            return
-        }
-        
-        fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
-        if err != nil {
-            errorlog.Printf("while opening path to reply npf: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-
-        defer fp.Close()
-
-        if _, err := fp.Write(npf); err != nil {
-            errorlog.Printf("while writing reply npf to file: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        w.WriteHeader(http.StatusOK)
+    movieid, err := strconv.Atoi(v["movieid"])
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
     }
+
+    // for now only memo replies from the ds
+    reply, err := io.ReadAll(r.Body)
+    if err != nil {
+        errorlog.Printf("while reading reply body: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    im, err := img.FromPpm(reply)
+    if err != nil {
+        errorlog.Printf("while decoding reply: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // only one page flipnotes should be posted
+    // this is in case of a bad actor manually POSTing a custom ppm
+    if len(im) != 1 {
+        errorlog.Printf("multiple frames in comment memo from %v", s.UserID)
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    // Convert to npf
+    // Quantizer is needed because while downsizing the image it introduces lots of other colors
+    src := resize.Resize(64, 48, im[0], resize.NearestNeighbor)
+    dst := image.NewPaletted(src.Bounds(), palette.WebSafe)
+
+    colorquant.NoDither.Quantize(src, dst, 15, false, true)
+
+    npf, err := img.ToNpf(dst)
+    if err != nil {
+        errorlog.Printf("while converting reply to npf: %v", err)
+        return
+    }
+    
+    id, err := addMovieReplyMemo(s.UserID, movieid)
+    if err != nil {
+        errorlog.Printf("while adding movie reply to database: %v", err)
+        return
+    }
+    
+    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    if err != nil {
+        errorlog.Printf("while opening path to reply npf: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    defer fp.Close()
+
+    if _, err := fp.Write(npf); err != nil {
+        errorlog.Printf("while writing reply npf to file: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    w.WriteHeader(http.StatusOK)
 }
 
 // misc handler is here for minor things that need to return something, but don't necessarily matter
@@ -522,7 +528,10 @@ func misc(w http.ResponseWriter, r *http.Request) {
 
     case "/ds/redirect.htm":
         w.Write([]byte(`<html><head></head><body>works</body</html>`))
+    case "/ds/v2-us/mail.send":
+        w.WriteHeader(http.StatusOK)
     }
+    
 }
 
 // static handler returns the file from cnf.Dir/static/path

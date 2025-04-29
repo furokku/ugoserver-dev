@@ -4,7 +4,7 @@ package main
 // Usage: accepts one argument in the form of a path to a json config file
 //        ./ugoserver [/path/to/config]
 // database: postgresql, must be compiled with openssl for pgcrypto
-// ipc: thru a unix socket connection and ugoctl control program, tbd
+// ipc: thru unix socket, use bundled client for a simple command line
 // api: thru REST, tbd
 //
 // support should only be enabled for the latest version of flipnote studio
@@ -27,7 +27,6 @@ package main
 // Creator's room
 // Documentation
 // Inform the user when the session expires within flipnote studio
-// CLI tool for things like whitelist, channels, bans, etc.
 
 import (
 	"database/sql"
@@ -191,6 +190,7 @@ func main() {
     // static ugomenus
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(dsi_am(menus["index"].handle(), false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(dsi_am(menus["channels"].handle(), false, false)) //todo: query db for channels
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(menus["debug"].handle(), false, false))
 
     // movies
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(movieFeed, false, false))
@@ -207,8 +207,9 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(starMovie, true, false))
 
     // comments
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(movieReply, true, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(movieReply, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{replyid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(replyPost, true, false))
 
     // testing
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.htm").Methods("GET").HandlerFunc(dsi_am(debug, false, false))
@@ -226,6 +227,10 @@ func main() {
     h.PathPrefix("/images").HandlerFunc(static)
     h.PathPrefix("/css").HandlerFunc(static)
     h.Path("/robots.txt").HandlerFunc(static)
+    
+    // mail test
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(dsi_am(menus["addresstest"].handle(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail.send").Methods("POST").HandlerFunc(dsi_am(misc, false, false))
     
     // Planned, maybe
     h.PathPrefix("/api/v1").HandlerFunc(api)
