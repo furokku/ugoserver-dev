@@ -88,6 +88,11 @@ func (u *Ugomenu) addButton(url string, icon int, label string, extra ...int) {
     }
 }
 
+// addTest() is for testing menu items with types >4
+func (u *Ugomenu) addTest(t int, v ...string) {
+    u.Items = append(u.Items, MenuItem{Type:"test", TestType:t, TestValues:v})    
+}
+
 // addEmbed() takes in a slice of bytes to be added to the menu
 func (u *Ugomenu) addEmbed(e []byte) {
     u.EmbedBytes = append(u.EmbedBytes, e)
@@ -125,6 +130,13 @@ func (u Ugomenu) pack(r string) []byte {
             menus = append(menus, menubc(3, url, q(item.Label))...)
         case "button":
             menus = append(menus, menubc(4, url, item.Icon, q(item.Label), item.Count, item.Lock, item.Unknown1, item.Unknown2)...)
+        case "test":
+            // workaround
+            v := []any{}
+            for _, i := range item.TestValues {
+                v = append(v, i)
+            }
+            menus = append(menus, menubc(item.TestType, v...)...)
         }
     }
 

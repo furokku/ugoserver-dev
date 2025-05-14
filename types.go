@@ -133,7 +133,10 @@ type (
         EmbedBytes [][]byte
     }
 
-    // MenuItem is a single item in a menu
+    // MenuItem is a single item in a menu.
+    // Supported Types are corner, dropdown, button and test.
+    // User-facing text elements are automatically encoded when packed;
+    // in original assets Unknown1 has always been set to 573 and Unknown2 to 0 on buttons
     MenuItem struct {
         Type     string `json:"type"`
         URL      string `json:"url"`
@@ -144,6 +147,8 @@ type (
         Lock     int `json:"lock,omitempty"`
         Unknown1 int `json:"unknown1,omitempty"`
         Unknown2 int `json:"unknown2,omitempty"`
+        TestType int `json:"test_type,omitempty"`
+        TestValues []string `json:"test_values,omitempty"`
     }
 
     // html template data type, only the fields that are needed in a particular template should be set
@@ -157,6 +162,9 @@ type (
         
         SID string
 
+        // whether the page should display anything extra
+        // if you are pushed back to it;
+        // example: [..]/ds/v2-eu/sa/register.htm?ret=error
         Return string
     }
 )
