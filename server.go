@@ -33,8 +33,6 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"html/template"
-	"strings"
 
 	"net/http"
 
@@ -51,9 +49,6 @@ var (
     cnf = Configuration{}
 
     sessions = make(map[string]Session)
-
-    menus = make(map[string]Ugomenu)
-    templates = make(map[string]*template.Template)
 )
 
 const (
@@ -81,54 +76,11 @@ func main() {
     }
     infolog.Printf("loaded config %s", cf)
     
-    // load html templates
-    // parsing lots of templates into one *template.Template produced weird results, so
-    // they are stored in a map
-    rd, err := os.ReadDir(cnf.Dir + "/static/template")
-    if err != nil {
-        errorlog.Fatalln(err)
-    }
-    for _, tpl := range rd {
-        if tpl.IsDir() {
-            continue
-        }
-        name := strings.Split(tpl.Name(), ".")[0]
-        p, err := template.ParseFiles(fmt.Sprintf("%s/static/template/%s", cnf.Dir, tpl.Name()))
-        if err != nil {
-            errorlog.Printf("%v\n", err)
-            continue
-        }
-        templates[name] = p
-    }
-    infolog.Printf("loaded %d html templates", len(templates))
+    // barzo dzekuje
+    load_menus(false)
+    load_templates(false)
 
-    // load ugomenus
-    rd, err = os.ReadDir(cnf.Dir + "/static/menu")
-    if err != nil {
-        errorlog.Fatalln(err)
-    }
-    for _, menu := range rd {
-        if menu.IsDir() { // ignore subdirs
-            continue
-        }
-        name := strings.Split(menu.Name(), ".")[0]
-        bytes, err := os.ReadFile(fmt.Sprintf("%s/static/menu/%s", cnf.Dir, menu.Name()))
-        if err != nil {
-            errorlog.Printf("%v\n", err)
-            continue
-        }
-        tu := Ugomenu{}
-        err = json.Unmarshal(bytes, &tu)
-        if err != nil {
-            errorlog.Printf("error loading %s: %v", name, err)
-            continue
-        }
-
-        menus[name] = tu
-    }
-    infolog.Printf("loaded %d ugomenus", len(menus))
-
-    // prep graceful exit
+    // listen for ^C
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Interrupt)
 
@@ -214,6 +166,7 @@ func main() {
     // testing
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.htm").Methods("GET").HandlerFunc(dsi_am(debug, false, false))
     h.Path("/ds/redirect.htm").HandlerFunc(dsi_am(misc, true, true))
+    h.Path("/ds/v2-us/").HandlerFunc(misc)
 
     // secondary authentication
     h.Path("/ds/{reg:v2-(?:us|eu|jp)/sa/auth.htm}").Methods("GET").HandlerFunc(dsi_am(sa, false, false))

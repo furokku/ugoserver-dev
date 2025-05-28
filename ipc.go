@@ -87,7 +87,7 @@ func ipc(conn net.Conn, c cmdHandler) {
             }
 
         }
-        infolog.Printf("cmd: %v", req)
+        infolog.Printf("ipc: %v ran %v", conn.RemoteAddr().String(), req)
         io.WriteString(conn, resp)
     }
 }

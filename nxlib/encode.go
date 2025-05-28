@@ -1,4 +1,4 @@
-package img
+package nxlib
 
 // encode.go: encode nbf/npf/ntft images
 
@@ -99,7 +99,7 @@ func EncodeNpf(w io.Writer, m image.Image) error {
 
 // nbf: ugomemo image format, used mainly for top screen backgrounds in html/ugomenus
 // similar to npf
-// apparently should always be 256x192, but idk, so other sizes are supported
+// apparently should always be 256x192, but idk, so size isn't checked
 // Has no support for transparency, 256 colors
 func ToNbf(img image.Image) ([]byte, error) {
     var im []int

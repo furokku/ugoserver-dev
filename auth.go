@@ -36,6 +36,7 @@ func dsi_am(next http.HandlerFunc, check_id bool, redirect bool) http.HandlerFun
         if check_id && !s.IsLoggedIn {
             if redirect {
                 http.HandlerFunc(sa).ServeHTTP(w, r)
+                return
             }
             w.WriteHeader(http.StatusUnauthorized)
             return

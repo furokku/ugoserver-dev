@@ -14,13 +14,15 @@
         "uppersubbottom": "text"
     },
 
-    "_comment_d": "Menu items, menu type 2 = 3x2 grid of buttons, menu type 3 4 channels menu",
+    "_comment_d": "Menu items, menu type 2 = 3x2 grid of buttons, menu type 3 4 = channels menu",
     "items": [
         {"type": "dropdown", "url": "http://ds.floc.root.sx/ds/foo.uls", "label": "label", "selected": true},
 
         {"type": "corner", "url": "http://ds.floc.root.sx/ds/foo.uls", "label": "bla"},
 
-        {"type": "button", "url": "http://ds.floc.root.sx/ds/foo.uls", "icon": 100, "label": "jelqinit", "count": 420, "lock": 1, "unknown1": 0, "unknown2": 0}
+        {"type": "button", "url": "http://ds.floc.root.sx/ds/foo.uls", "icon": 100, "label": "jelqinit", "count": 420, "lock": 1, "unknown1": 0, "unknown2": 0},
+
+        {"type": "test", "test_type": 5, "test_values": ["not", "encoded"]}
     ],
 
     "_comment_e": "Optional embed items, use for custom icons or tmb embeds",

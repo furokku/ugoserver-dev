@@ -146,7 +146,7 @@ func (u Ugomenu) pack(r string) []byte {
         for _, embed := range u.Embed {
             bytes, err := os.ReadFile(embed)
             if err != nil {
-                errorlog.Fatalf("embedding %v failed: %v", embed, err)
+                errorlog.Printf("embedding %v failed: %v", embed, err)
             }
             embedded = append(embedded, bytes...)
         }

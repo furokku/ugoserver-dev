@@ -2,6 +2,6 @@
     "layout": [3, 1],
     
     "items": [
-        {"type": "button", "url": "ugomemo://createmail/bogus", "label": "bogus label", "icon": 104, "count": 25, "lock": 0, "unknown1": 0, "unknown2": 0}
+        {"type": "button", "url": "0123456789ABCDEF", "label": "bogus label", "icon": 104, "count": 25, "lock": 0, "unknown1": 0, "unknown2": 0}
     ]
 }

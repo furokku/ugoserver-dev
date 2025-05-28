@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"floc/ugoserver/img"
+	"floc/ugoserver/nxlib"
 )
 
 var (
@@ -460,7 +460,7 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    im, err := img.FromPpm(reply)
+    im, err := nxlib.FromPpm(reply)
     if err != nil {
         errorlog.Printf("while decoding reply: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -482,7 +482,7 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
 
     colorquant.NoDither.Quantize(src, dst, 15, false, true)
 
-    npf, err := img.ToNpf(dst)
+    npf, err := nxlib.ToNpf(dst)
     if err != nil {
         errorlog.Printf("while converting reply to npf: %v", err)
         return
@@ -530,6 +530,9 @@ func misc(w http.ResponseWriter, r *http.Request) {
         w.Write([]byte(`<html><head></head><body>works</body</html>`))
     case "/ds/v2-us/mail.send":
         w.WriteHeader(http.StatusOK)
+    case "/ds/v2-us/":
+        bytes, _ := os.ReadFile("static/images/ds/8x8test.npf")
+        w.Write(bytes)
     }
     
 }

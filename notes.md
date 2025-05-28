@@ -25,3 +25,10 @@ value set to 0 makes flipnote studio navigate to the url in the response body  (
 url should be set to ugomemo://createmail
 <br>then it asks for mail/addresses.ugo which is just an ugomenu with a bunch of buttons with the url set to ugomemo://createmail/{id of recipient}
 <br>it then sends POST request to mail.send with X-DSi-Mail-To header with the request body containing a mini flipnote. TODO?
+
+# menu types
+0 - index.ugo, big top button, small buttons
+1 - small buttons, counter
+2,1/2 - inbox.ugo, flipnote list, 1 is regular, 2 adds Post button
+3,0/1/4 - 0 is regular list, 1 is for mail/addresses.ugo, 4 is for channels.ugo, 
+4 - small buttons, optional counter

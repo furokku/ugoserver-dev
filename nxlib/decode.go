@@ -1,4 +1,4 @@
-package img
+package nxlib
 
 // decode.go: decode ntft images, ppm animations
 
