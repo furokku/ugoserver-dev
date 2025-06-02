@@ -83,7 +83,7 @@ func ipc(conn net.Conn, c cmdHandler) {
             if !ok {
                 resp = "unknown command " + args[0]
             } else {
-                resp = f(args[1:])
+                resp = args[0] + ": " + f(args[1:])
             }
 
         }
