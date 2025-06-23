@@ -1,0 +1,14 @@
+;
+; BIND data file for local loopback interface
+;
+$TTL	604800
+@	IN	SOA	ns.ugomemo.hatena.ne.jp. ugomemo.hatena.ne.jp. (
+			      3		; Serial
+			 604800		; Refresh
+			  86400		; Retry
+			2419200		; Expire
+			 604800 )	; Negative Cache TTL
+	IN	NS	ns.ugomemo.hatena.ne.jp.
+ns.ugomemo.hatena.ne.jp.	IN	A	192.168.0.199
+
+ugomemo.hatena.ne.jp.	IN	A	192.168.0.199
