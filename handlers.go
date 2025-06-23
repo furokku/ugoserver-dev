@@ -75,7 +75,7 @@ func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
 
-    if err := templates["debug"].Execute(w, Page{
+    if err := templates.ExecuteTemplate(w, "debug.html", Page{
         Session: s,
         Root: cnf.Root,
         Region: s.getregion(),

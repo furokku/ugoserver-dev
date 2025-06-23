@@ -7,13 +7,16 @@ CREATE TABLE users(
     password VARCHAR(60) NOT NULL,
     admin BOOL DEFAULT FALSE,
     fsid VARCHAR(16) DEFAULT '0000000000000000',
+    last_login_time TIMESTAMPTZ DEFAULT now(),
     last_login_ip TEXT DEFAULT 'never logged in before',
-    expendable_stars INT ARRAY[5] DEFAULT '{0, 0, 0, 0, 0}'-- index 1 should be unused here
+    expendable_stars INT ARRAY[5] DEFAULT '{0, 0, 0, 0, 0}',-- first index should be unused here
+    deleted BOOL DEFAULT FALSE
 );
 CREATE TABLE channels(
     id SERIAL PRIMARY KEY,
-    desc_s TEXT DEFAULT 'New channel',
-    desc_l TEXT DEFAULT 'Call Luigi?'
+    chname TEXT DEFAULT 'New channel',
+    dsc TEXT DEFAULT 'Call Luigi?',
+    deleted BOOL DEFAULT FALSE
 );
 CREATE TABLE movies(
     id SERIAL PRIMARY KEY,
@@ -34,11 +37,12 @@ CREATE TABLE comments(
     movieid INT NOT NULL REFERENCES movies(id),
     is_memo BOOL DEFAULT TRUE,
     content TEXT DEFAULT 'hhhhh',
-    posted TIMESTAMPTZ DEFAULT now()
+    posted TIMESTAMPTZ DEFAULT now(),
+    deleted BOOL DEFAULT FALSE
 );
 CREATE TABLE auth_whitelist(
     id SERIAL PRIMARY KEY,
-    userfsid VARCHAR(16)
+    fsid VARCHAR(16)
 );
 CREATE TABLE bans(
     id SERIAL PRIMARY KEY,

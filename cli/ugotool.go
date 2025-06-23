@@ -73,7 +73,6 @@ func console(addr string) {
     go func(c net.Conn) {
         sig := <- sigs
         c.Close()
-        
         fmt.Printf("caught %v, exiting\n", sig)
         os.Exit(0)
     }(conn)
@@ -88,10 +87,16 @@ func console(addr string) {
             panic(err)
         }
 
-        io.WriteString(conn, s.Text())
+        n, err := conn.Write(s.Bytes())
+        if err != nil {
+            panic(err)
+        }
+        if n == 0 {
+            continue
+        }
 
         buf := make([]byte, 1048576) // read at most 1MiB, this should never be too little
-        n, err := conn.Read(buf)
+        n, err = conn.Read(buf)
         if err != nil && err != io.EOF {
             panic(err)
         }

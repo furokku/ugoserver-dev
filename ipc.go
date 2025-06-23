@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+var ac map[int]*net.Conn = make(map[int]*net.Conn)
+
 func newIpcListener(sf string, c cmdHandler) *ipcListener {
     s := &ipcListener{
         quit: make(chan interface{}),
@@ -37,6 +39,7 @@ func (s *ipcListener) stop() {
 }
 
 func (s *ipcListener) serve(c cmdHandler) {
+    id := 0
     defer s.wg.Done()
 
     for {
@@ -44,21 +47,27 @@ func (s *ipcListener) serve(c cmdHandler) {
         if err != nil {
             select {
             case <-s.quit:
+                for k, ic := range ac {
+                    (*ic).Close()
+                    delete(ac, k)
+                }
                 return
             default:
                 errorlog.Printf("socket accept error: %v", err)
             }
         } else {
+            id++
+            ac[id] = &conn
             s.wg.Add(1)
             go func() {
-                ipc(conn, c)
+                s.ipc(id, conn, c)
                 s.wg.Done()
             }()
         }
     }
 }
 
-func ipc(conn net.Conn, c cmdHandler) {
+func (s *ipcListener) ipc(id int, conn net.Conn, c cmdHandler) {
     defer conn.Close()
 
     buf := make([]byte, 4096)
@@ -74,6 +83,7 @@ func ipc(conn net.Conn, c cmdHandler) {
             return
         }
         req := string(buf[:n])
+        infolog.Printf("ipc: %v ran %v", conn.RemoteAddr().String(), req)
 
         args := strings.Split(req, " ")
         if len(args) == 0 {
@@ -85,9 +95,7 @@ func ipc(conn net.Conn, c cmdHandler) {
             } else {
                 resp = args[0] + ": " + f(args[1:])
             }
-
         }
-        infolog.Printf("ipc: %v ran %v", conn.RemoteAddr().String(), req)
         io.WriteString(conn, resp)
     }
 }

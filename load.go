@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	templates = make(map[string]*template.Template)
+	templates *template.Template
 	menus = make(map[string]Ugomenu)
 )
 
@@ -17,43 +17,57 @@ var (
 //
 // parsing lots of files into one *template.Template produced weird results, so
 // they are stored in a map
-func load_templates(reload bool) {
+func load_templates(reload bool) error {
 	
 	// clear map contents
-	if reload {
-		templates = make(map[string]*template.Template)
-	}
-
-    rd, err := os.ReadDir(cnf.Dir + "/static/template")
+	//if reload {
+	//	templates = make(map[string]*template.Template)
+	//}
+    // Better way to do this, as this will break things if it
+    // fails to hot-reload
+    
+    //rd, err := os.ReadDir(cnf.Dir + "/static/template")
+    //if err != nil {
+    //    return err
+    //}
+    //for _, tpl := range rd {
+    //    if tpl.IsDir() {
+    //        continue
+    //    }
+    //    name := strings.Split(tpl.Name(), ".")[0]
+    //    p, err := template.ParseFiles(fmt.Sprintf("%s/static/template/%s", cnf.Dir, tpl.Name()))
+    //    if err != nil {
+    //        errorlog.Printf("load_template: error parsing %s: %v\n", name, err)
+    //        continue
+    //    }
+    //    temp[name] = p
+    //}
+    
+    temp, err := template.ParseGlob(fmt.Sprintf("%v/static/template/*.html", cnf.Dir))
     if err != nil {
-        errorlog.Fatalf("load_template: %v\n", err)
+        return err
     }
-    for _, tpl := range rd {
-        if tpl.IsDir() {
-            continue
-        }
-        name := strings.Split(tpl.Name(), ".")[0]
-        p, err := template.ParseFiles(fmt.Sprintf("%s/static/template/%s", cnf.Dir, tpl.Name()))
-        if err != nil {
-            errorlog.Printf("load_template: error parsing %s: %v\n", name, err)
-            continue
-        }
-        templates[name] = p
-    }
-    infolog.Printf("load_template: loaded %d html templates\n", len(templates))
+    
+    templates = temp
+    infolog.Printf("load_template: loaded %d html templates%v\n", len(templates.Templates()), templates.DefinedTemplates())
+    
+    return nil
 }
 
 // load menus from static/menu/*.json
-func load_menus(reload bool) {
+func load_menus(reload bool) error {
 	
-	// clear map contents before reloading
-	if reload {
-		menus = make(map[string]Ugomenu)
-	}
+	//clear map contents before reloading
+	//if reload {
+	//	menus = make(map[string]Ugomenu)
+	//}
+    // Better way to do this, as this will break things if it
+    // fails to hot-reload
+    temp := make(map[string]Ugomenu)
 
     rd, err := os.ReadDir(cnf.Dir + "/static/menu")
     if err != nil {
-        errorlog.Fatalf("load_menu: %v\n", err)
+        return err
     }
     for _, menu := range rd {
         if menu.IsDir() { // ignore subdirs
@@ -72,7 +86,11 @@ func load_menus(reload bool) {
             continue
         }
 
-        menus[name] = tu
+        temp[name] = tu
     }
+
+    menus = temp
     infolog.Printf("load_menu: loaded %d ugomenus\n", len(menus))
+    
+    return nil
 }

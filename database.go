@@ -13,7 +13,7 @@ const (
     // something needs to be minorly tweaked
 
     SQL_MOVIE_ADD string = "INSERT INTO movies (author_userid, author_fsid, author_name, author_filename, lock, channelid) VALUES ($1, $2, $3, $4, $5, $6) RETURNING (id)"
-    SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1"
+    SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1 AND deleted = false"
     SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT 1 FROM movies WHERE author_filename = $1 AND deleted = false)"
 
     SQL_MOVIE_GET_BY_ID string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1) SELECT movie.*, yst, gst, rst, bst, pst, replies.c FROM movie, replies, get_movie_stars($1)"
@@ -23,33 +23,40 @@ const (
     SQL_MOVIE_UPDATE_DL string = "UPDATE movies SET downloads = downloads + 1 WHERE id = $1 AND deleted = false"
     SQL_MOVIE_UPDATE_VIEWS string = "UPDATE movies SET views = views + 1 WHERE id = $1 AND deleted = false"
     
-    SQL_CHANNEL_GET_MAIN string = "SELECT id, desc_s FROM channels ORDER BY id ASC LIMIT 8"
-    SQL_CHANNEL_GET_MORE string = "SELECT id, desc_s FROM channels ORDER BY id ASC OFFSET 8"
-    SQL_CHANNEL_GET_DESC_BY_ID string = "SELECT desc_s, desc_l FROM channels WHERE id = $1"
+    SQL_CHANNEL_CREATE string = "INSERT INTO channels (chname, dsc) VALUES ($1, $2) RETURNING id"
+    SQL_CHANNEL_DELETE string = "UPDATE channels SET deleted = true WHERE id = $1 AND deleted = false"
+    SQL_CHANNEL_RENAME string = "UPDATE channels SET chname = $2 WHERE id = $1 AND deleted = false"
+    SQL_CHANNEL_CHANGE_DESC string = "UPDATE channels SET dsc = $2 WHERE id = $1 AND deleted = false"
+    SQL_CHANNEL_GET_MAIN string = "SELECT id, chname FROM channels WHERE deleted = false ORDER BY id ASC LIMIT 8"
+    SQL_CHANNEL_GET_MORE string = "SELECT id, chname FROM channels WHERE deleted = false ORDER BY id ASC OFFSET 8+($1-1)*15 LIMIT 15" // tweak limit if needed; pagination
+    SQL_CHANNEL_GET_DESC_BY_ID string = "SELECT chname, dsc FROM channels WHERE id = $1 AND deleted = false"
 
     SQL_MOVIE_UPDATE_STARS string = "SELECT update_movie_stars($1, $2, $3, $4)"
     SQL_USER_GET_EXPENDABLE_STARS string = "SELECT expendable_stars[2:5] FROM users WHERE id = $1"
 
-    SQL_MOVIE_ADD_COMMENT_MEMO string = "INSERT INTO comments (userid, movieid) VALUES ($1, $2) RETURNING (id)" // only need to imply about its existence
-    SQL_MOVIE_ADD_COMMENT_TEXT string = "INSERT INTO comments (userid, movieid, is_memo, content) VALUES ($1, $2, false, $3)"
-    SQL_MOVIE_GET_COMMENT string = "SELECT comments.*, users.username FROM comments JOIN users ON comments.userid = users.id WHERE movieid = $1 ORDER BY posted DESC LIMIT 10 OFFSET ($2-1)*10"
+    SQL_COMMENT_ADD_MEMO string = "INSERT INTO comments (userid, movieid) VALUES ($1, $2) RETURNING (id)" // only need to imply about its existence
+    SQL_COMMENT_ADD_TEXT string = "INSERT INTO comments (userid, movieid, is_memo, content) VALUES ($1, $2, false, $3)"
+    SQL_COMMENT_GET_ON_MOVIE string = "SELECT comments.*, users.username FROM comments JOIN users ON comments.userid = users.id WHERE movieid = $1 AND comments.deleted = false ORDER BY posted DESC LIMIT 10 OFFSET ($2-1)*10"
+    SQL_COMMENT_DELETE string = "UPDATE comments SET deleted = true WHERE id = $1 and deleted = false"
     
-    SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (userfsid) VALUES ($1)"
-    SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE userfsid = $1"
-    SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE userfsid = $1)"
+    SQL_WHITELIST_FSID_ADD string = "INSERT INTO auth_whitelist (fsid) VALUES ($1)"
+    SQL_WHITELIST_FSID_DELETE string = "DELETE FROM auth_whitelist WHERE fsid = $1"
+    SQL_WHITELIST_FSID_CHECK string = "SELECT EXISTS(SELECT 1 FROM auth_whitelist WHERE fsid = $1)"
     
     SQL_USER_BAN_CHECK string = "SELECT EXISTS(SELECT 1 FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1)"
     SQL_USER_BAN_QUERY string = "SELECT * FROM bans WHERE pardon = false AND affected = $1 AND expires > now() ORDER BY expires DESC LIMIT 1"
     SQL_USER_BAN string = "INSERT INTO bans (issuer, expires, message, affected) VALUES ($1, $2, $3, $4)"
+    SQL_USER_PARDON string = "UPDATE bans SET pardon = true WHERE id IN(SELECT max(id) FROM bans WHERE affected = $1 AND pardon = false)"
     SQL_USER_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
     SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
-    SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password)"
-    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password))"
-    SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1)"
-    SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users SET last_login_ip = $2 WHERE id = $1"
-    SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1"
+    SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password) AND deleted = false"
+    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password) AND deleted = false)"
+    SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1 AND deleted = false)"
+    SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users SET last_login_ip = $2 WHERE id = $1 AND deleted = false"
+    SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1 AND deleted = false"
     SQL_USER_RATELIMIT string = "SELECT * FROM get_user_ratelimit($1)"
+    SQL_USER_DELETE string = "UPDATE users SET deleted = true WHERE id = $1 and deleted = false"
 
     SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret))"
     SQL_APITOKEN_REGISTER string = "INSERT INTO apitokens (userid, secret) VALUES ($1, crypt($2, gen_salt('bf')))"
@@ -127,7 +134,7 @@ func getChannelMovies(id int, mode string, p int) ([]Movie, int, error) {
     return getMoviesList(q, id, p)
 }
 
-// getChannelInfo() will return the short and long description of a channel by ID
+// getChannelInfo() will return the name and description of a channel by its ID
 func getChannelInfo(id int) (string, string, error) {
     var s, l string
 
@@ -136,6 +143,37 @@ func getChannelInfo(id int) (string, string, error) {
     }
     
     return s, l, nil
+}
+
+// getChannel() returns a list of channels, 0 - first 8, >0 - paginated x15
+func getChannelList(mode int) ([]Channel, error) {
+    var rows *sql.Rows
+    var err error
+
+    chcap := 15
+
+    if mode == 0 {
+        chcap = 8
+        rows, err = db.Query(SQL_CHANNEL_GET_MAIN)
+    } else {
+        rows, err = db.Query(SQL_CHANNEL_GET_MORE, mode)
+    }
+
+    ch := make([]Channel, 0, chcap)
+
+    if err != nil {
+        return nil, err
+    }
+    
+    for rows.Next() {
+        var id int
+        var name string
+        
+        rows.Scan(&id, &name)
+        ch = append(ch, Channel{ID: id, Name: name})
+    }
+
+    return ch, nil
 }
 
 // addMovie() updates the database with information about a movie, returning its ID
@@ -168,7 +206,7 @@ func deleteMovie(movieid int) error {
 // addMovieReplyMemo() updates the database about a new comment and returns its ID
 func addMovieReplyMemo(userid int, movieid int) (int, error) {
     var id int
-    if err := db.QueryRow(SQL_MOVIE_ADD_COMMENT_MEMO, userid, movieid).Scan(&id); err != nil {
+    if err := db.QueryRow(SQL_COMMENT_ADD_MEMO, userid, movieid).Scan(&id); err != nil {
         return 0, err
     }
     return id, nil
@@ -179,7 +217,7 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
     var comments []Comment
 
     // comment content
-    rows, err := db.Query(SQL_MOVIE_GET_COMMENT, movieid, page)
+    rows, err := db.Query(SQL_COMMENT_GET_ON_MOVIE, movieid, page)
     if err == sql.ErrNoRows {
         return nil, nil
     } else if err != nil {
@@ -190,7 +228,7 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
     for rows.Next() {
         c := Comment{}
 
-        if err := rows.Scan(&c.ID, &c.UserID, &c.MovieID, &c.IsMemo, &c.Content, &c.Posted, &c.Username); err != nil {
+        if err := rows.Scan(&c.ID, &c.UserID, &c.MovieID, &c.IsMemo, &c.Content, &c.Posted, &c.Deleted, &c.Username); err != nil {
             return nil, err
         }
         comments = append(comments, c)
@@ -199,15 +237,25 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
     return comments, nil
 }
 
-// getUserStars() gets a user's available color stars
-func getUserExpendableStars(userid int) ([]int, error) {
+// getUserExpendableStars() returns a User{} with only the ESx and ID fields filled in
+func getUserExpendableStars(userid int) (User, error) {
+    // case: unregistered user
+    if userid == 0 {
+        return User{}, nil
+    }
+
     s := make([]int, 4)
     
     if err := db.QueryRow(SQL_USER_GET_EXPENDABLE_STARS, userid).Scan(&s); err != nil {
-        return nil, err
+        return User{}, err
     }
     
-    return s, nil
+    return User{ID: userid, ESgreen: s[0], ESred: s[1], ESblue: s[2], ESpurple: s[3]}, nil
+}
+
+// getUserStars() returns the stars a user has received across all posts ([0]->yellow...)
+func getUserStars(userid int) ([]int, error) {
+    return nil, nil //todo
 }
 
 // updateMovieStars() updates the database about stars added to a movie
@@ -336,10 +384,18 @@ func issueBan(iss string, exp time.Time, affected string, msg string, ce bool) e
     return nil
 }
 
-// pardonBanId() will pardon a ban by its ID
-func pardonBanId(banid int) error {
-    if _, err := db.Exec(SQL_USER_PARDON_BY_ID, banid); err != nil {
-        return err
+// pardonBanId() will pardon a ban by its ID when given an integer argument
+// and the latest active ban on an FSID or IP when given a string argument
+func pardonBan(in any) error {
+    switch in.(type) {
+    case int:
+        if _, err := db.Exec(SQL_USER_PARDON_BY_ID, in); err != nil {
+            return err
+        }
+    case string:
+        if _, err := db.Exec(SQL_USER_PARDON, in); err != nil {
+            return err
+        }
     }
     return nil
 }

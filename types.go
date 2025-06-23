@@ -83,6 +83,19 @@ type (
         UserID int // 0 if unregistered
     }
     
+    // User definition for other things
+    User struct {
+        ID int
+        FSID int
+        Admin bool
+        Deleted bool
+        
+        ESgreen int
+        ESred int
+        ESblue int
+        ESpurple int
+    }
+    
     // Movie contains all information about a movie, including the amount of comments it has
     // When building the feed, only ID and Ys are set, as nothing else is necessary
     // However, when fetching a singular movie by its ID, all fields are populated
@@ -115,6 +128,14 @@ type (
         IsMemo bool // whether the comment is a mini flipnote
         Content string // text, if the comment is a text comment
         Posted time.Time
+        Deleted bool
+    }
+    
+    Channel struct {
+        ID int
+        Name string
+        Description string
+        Deleted bool
     }
 
     // Ugomenu is a data type for parsing statically laid out menus from json, for convenience
@@ -156,9 +177,11 @@ type (
         Session
         Root string
         Region string
+        User
         
         Movie
         Comments []Comment
+        Channel
         
         SID string
 

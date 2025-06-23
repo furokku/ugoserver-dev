@@ -132,6 +132,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         if err == ErrNoUser {
             req.IsUnregistered = true
         } else if err != nil {
+            errorlog.Printf("while getting user: %v", err)
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
             w.Write(encUTF16LE(MSG_ERROR_REF + ref))
             return
@@ -352,7 +353,7 @@ func sa(w http.ResponseWriter, r *http.Request) {
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     ret := r.URL.Query().Get("ret")
 
-    if err := templates["auth"].Execute(w, Page{
+    if err := templates.ExecuteTemplate(w, "auth.html", Page{
         Session: s,
         Root: cnf.Root,
         Region: s.getregion(),

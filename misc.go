@@ -10,6 +10,7 @@ import (
 
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"time"
@@ -18,6 +19,11 @@ import (
 var (
     utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
     utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
+
+    fsid_match = regexp.MustCompile("^[0159]{1}[0-9A-F]{15}$")
+    ip_match = regexp.MustCompile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\b){4}$")
+    fn_match = regexp.MustCompile("^[0-9A-F]{6}_[0-9A-F]{13}_[0-9]{3}$")
+    dur_match = regexp.MustCompile("[1-9][0-9]*[dhmw]")
 )
 
 const (

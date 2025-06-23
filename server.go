@@ -141,8 +141,13 @@ func main() {
 
     // static ugomenus
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(dsi_am(menus["index"].handle(), false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(dsi_am(menus["channels"].handle(), false, false)) //todo: query db for channels
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(dsi_am(channelMainMenu, false, false)) //todo: query db for channels
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(menus["debug"].handle(), false, false))
+
+    // comments
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{replyid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(replyPost, true, false))
 
     // movies
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(movieFeed, false, false))
@@ -157,11 +162,6 @@ func main() {
     // stars
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(starMovie, true, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(starMovie, true, false))
-
-    // comments
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{replyid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, true, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(replyPost, true, false))
 
     // testing
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.htm").Methods("GET").HandlerFunc(dsi_am(debug, false, false))
@@ -208,6 +208,12 @@ func main() {
     // cli commands
     ch := newCmdHandler()
     ch.register("whitelist", whitelist)
+    ch.register("reload", reload)
+    ch.register("ban", ban)
+    ch.register("pardon", pardon)
+    ch.register("stat", show)
+    ch.register("channel", channel)
+    ch.register("movie", movie)
 
     ipcS := newIpcListener(SOCKET_FILE, *ch)
     infolog.Printf("started unix socket listener")
