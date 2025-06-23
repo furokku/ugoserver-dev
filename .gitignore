@@ -1,5 +1,5 @@
 # you should create these
-# dirs yourself
+# yourself
 config.json
 nginx.conf
 dnsmasq.conf
