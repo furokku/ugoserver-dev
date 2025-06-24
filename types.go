@@ -11,17 +11,6 @@ type (
     
     // Internal types, don't need to be exported (yet?)
 
-    // restriction contains all information about a user's ban
-    restriction struct {
-        banid    int
-        issuer   string // Who banned the user
-        issued   time.Time
-        expires  time.Time
-        message  string
-        pardon   bool // whether the ban was pardoned
-        affected string // affected IP or FSID
-    }
-
     // Unix ipc listener
     ipcListener struct {
         listener net.Listener
@@ -38,6 +27,9 @@ type (
         status int
         done   bool
     }
+
+
+    // Must be exported for html templates
 
     // Json config format
     Configuration struct {
@@ -56,9 +48,6 @@ type (
         UseHosts  bool     `json:"use_allowed_hosts"`
         Hosts     []string `json:"hosts"`
     }
-
-
-    // Must be exported for html templates
     
     // Session contains all information about a user's session, including data
     // from the initial authentication on /ds/v2-xx/auth
@@ -130,12 +119,23 @@ type (
         Posted time.Time
         Deleted bool
     }
-    
+
     Channel struct {
         ID int
         Name string
         Description string
         Deleted bool
+    }
+
+    // Ban contains all information about a user's ban
+    Ban struct {
+        ID    int
+        Issuer   string // Who banned the user
+        Issued   time.Time
+        Expires  time.Time
+        Message  string
+        Pardon   bool // whether the ban was pardoned
+        Affected string // affected IP or FSID
     }
 
     // Ugomenu is a data type for parsing statically laid out menus from json, for convenience

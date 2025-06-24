@@ -25,7 +25,7 @@ func eula(w http.ResponseWriter, r *http.Request) {
 
 // eulatsv handler returns the eula_list.tsv required by eu versions of flipnote
 func eulatsv(w http.ResponseWriter, r *http.Request) {
-    w.Write(append(encUTF16LE("English"), []byte("\ten")...))
+    w.Write(append(encUTF16LE("English"), "\ten"...))
 }
 
 // misc handler is here for minor things that need to return something, but don't necessarily matter

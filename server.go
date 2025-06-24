@@ -14,16 +14,19 @@ package main
 // make sure that the client receives as few non-200 responses as possible
 // (preferably zero), as this makes flipnote studio behave strangely sometimes
 //
+// get ready for boilerplate code galore, because this is my first big
+// Go project and I have no idea what I'm doing sometimes!
+//
 // TODO:
 // Command search
 // Lots of tlc on the templates for movies, comments, secondary auth
 // Text comments
-// Users have expendable stars
+// Users have expendable stars W
 // Mail
 // More sorting modes
 // API
 // Web interface
-// Build channels menu automatically
+// Build channels menu automatically W
 // Creator's room
 // Documentation
 // Inform the user when the session expires within flipnote studio
@@ -31,8 +34,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-
-	"encoding/json"
 
 	"net/http"
 
@@ -46,7 +47,6 @@ import (
 
 var (
     db *sql.DB
-    cnf = Configuration{}
 
     sessions = make(map[string]Session)
 )
@@ -57,38 +57,28 @@ const (
 
 func main() {
     
-    infolog.Printf("starting ugoserver")
-
-    // Load config file
-    // Flags are kinda useless because this will always
-    // be used with a configuration file
-    cf := "config.json" // default file to look for
-    if len(os.Args) > 1 {
-        cf = os.Args[1]
-    }
-    cbytes, err := os.ReadFile(cf)
-    if err != nil {
-        errorlog.Fatalf("failed to open config file: %v", err)
-    }
-    json.Unmarshal(cbytes, &cnf)
-    if err != nil {
-        errorlog.Fatalf("failed to load config file: %v", err)
-    }
-    infolog.Printf("loaded config %s", cf)
+    infolog.Println("starting ugoserver")
+    defer infolog.Println("goodbye!")
     
     // barzo dzekuje
-    load_menus(false)
-    load_templates(false)
+    if err := load_config(false); err != nil {
+        errorlog.Fatalf("failed to load configuration: %v", err)
+    }
+    if err := load_menus(false); err != nil {
+        errorlog.Printf("failed to load menus: %v", err)
+    }
+    if err := load_templates(false); err != nil {
+        errorlog.Printf("failed to load templates: %v", err)
+    }
 
     // listen for ^C
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Interrupt)
 
-
     // connect to db
     cs := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
     
-    db, err = sql.Open("postgres", cs)
+    db, err := sql.Open("postgres", cs)
     if err != nil {
         errorlog.Fatalf("could not connect to database: %v", err)
     }
@@ -97,7 +87,6 @@ func main() {
     }
 
     infolog.Printf("connected to database")
-    defer db.Close()
 
     // start a thread to remove old, expired sessions
     // the time for a session to expire is 2 hours
@@ -145,8 +134,10 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(menus["debug"].handle(), false, false))
 
     // comments
+    // note: Due to how the servemux works, this has to be before
+    // movieHandler in order to work
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{replyid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(replyPost, true, false))
 
     // movies
@@ -193,7 +184,7 @@ func main() {
 
     // start web server
     go func() {
-        infolog.Printf("started http server")
+        infolog.Printf("serving http on %v", cnf.Listen)
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
             errorlog.Printf("server error: %v", err)
@@ -215,20 +206,23 @@ func main() {
     ch.register("channel", channel)
     ch.register("movie", movie)
 
-    ipcS := newIpcListener(SOCKET_FILE, *ch)
-    infolog.Printf("started unix socket listener")
-    defer ipcS.stop()
+    ipc := newIpcListener(SOCKET_FILE, *ch)
+    infolog.Printf("serving unix socket on %v", SOCKET_FILE)
 
     // wait and do a graceful exit on ctrl-c / sigterm
     sig := <- sigs
-    infolog.Printf("%v: exiting...\n", sig)
+    infolog.Printf("%v: shutting down...", sig)
+    
+    // close unix socket
+    ipc.stop()
 
     ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
     defer cancel()
 
     if err := hatena.Shutdown(ctx); err != nil {
-        errorlog.Fatalf("graceful shutdown failed! %v", err)
+        errorlog.Fatalf("graceful shutdown failed: %v", err)
     }
-
-    infolog.Println("server shutdown")
+    
+    // close db connection
+    db.Close()
 }

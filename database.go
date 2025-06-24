@@ -63,8 +63,12 @@ const (
     SQL_APITOKEN_VERIFY string = "SELECT userid FROM apitokens WHERE expires > now() AND secret = crypt($1, apitokens.secret)"
 )
 
-// All of these functions return an error, which is simply
+// All of these functions return an error, which is usually
 // what DB.Exec or DB.Query returns, if applicable. make sure to handle it correctly
+
+//
+// MOVIE
+//
 
 // getMoviesList() returns a list of 50 movies and the total according to the provided SQL statement
 func getMoviesList(stmt string, args ...any) ([]Movie, int, error) {
@@ -134,6 +138,65 @@ func getChannelMovies(id int, mode string, p int) ([]Movie, int, error) {
     return getMoviesList(q, id, p)
 }
 
+// addMovie() updates the database with information about a movie, returning its ID
+func addMovie(userid int, fsid string, name string, fn string, l int, channel int) (int, error) {
+    var new_movieid int
+
+    // check if flipnote has already been uploaded
+    // using filename (they are always unique)
+    if exists, err := checkMovieExistsAfn(fn); err != nil {
+        return 0, err
+    } else if exists {
+        return 0, ErrMovieExists
+    }
+    
+    if err := db.QueryRow(SQL_MOVIE_ADD, userid, fsid, name, fn, l, channel).Scan(&new_movieid); err != nil {
+        return 0, err
+    }
+    
+    return new_movieid, nil
+}
+
+// deleteMovie() sets a movie as deleted
+func deleteMovie(movieid int) error {
+    if _, err := db.Exec(SQL_MOVIE_DELETE, movieid); err != nil {
+        return err
+    }
+    return nil
+}
+
+// updateViewDlCount() updates the database about views and downloads on a movie
+func updateViewDlCount(movieid int, t string) error {
+    var q string
+    switch t {
+    case "dl":
+        q = SQL_MOVIE_UPDATE_DL
+    case "ppm":
+        q = SQL_MOVIE_UPDATE_VIEWS
+    }
+    if _, err := db.Exec(q, movieid); err != nil {
+        return err
+    }
+    return nil
+}
+
+// checkMovieExistsAfn() checks whether a movie has already been uploaded by looking for a movie with the same filename
+func checkMovieExistsAfn(afn string) (bool, error) {
+    var exists bool
+
+    err := db.QueryRow(SQL_MOVIE_CHECK_EXISTS_AFN, afn).Scan(&exists)
+    if err != nil {
+        return false, err
+    }
+
+    return exists, nil
+}
+
+
+//
+// CHANNEL
+//
+
 // getChannelInfo() will return the name and description of a channel by its ID
 func getChannelInfo(id int) (string, string, error) {
     var s, l string
@@ -176,35 +239,13 @@ func getChannelList(mode int) ([]Channel, error) {
     return ch, nil
 }
 
-// addMovie() updates the database with information about a movie, returning its ID
-func addMovie(userid int, fsid string, name string, fn string, l int, channel int) (int, error) {
-    var new_movieid int
 
-    // check if flipnote has already been uploaded
-    // using filename (they are always unique)
-    if exists, err := checkMovieExistsAfn(fn); err != nil {
-        return 0, err
-    } else if exists {
-        return 0, ErrMovieExists
-    }
-    
-    if err := db.QueryRow(SQL_MOVIE_ADD, userid, fsid, name, fn, l, channel).Scan(&new_movieid); err != nil {
-        return 0, err
-    }
-    
-    return new_movieid, nil
-}
-
-// deleteMovie() sets a movie as deleted
-func deleteMovie(movieid int) error {
-    if _, err := db.Exec(SQL_MOVIE_DELETE, movieid); err != nil {
-        return err
-    }
-    return nil
-}
+//
+// REPLIES
+//
 
 // addMovieReplyMemo() updates the database about a new comment and returns its ID
-func addMovieReplyMemo(userid int, movieid int) (int, error) {
+func addMovieCommentMemo(userid int, movieid int) (int, error) {
     var id int
     if err := db.QueryRow(SQL_COMMENT_ADD_MEMO, userid, movieid).Scan(&id); err != nil {
         return 0, err
@@ -236,6 +277,11 @@ func getMovieComments(movieid int, page int) ([]Comment, error) {
     
     return comments, nil
 }
+
+
+//
+// STARS
+//
 
 // getUserExpendableStars() returns a User{} with only the ESx and ID fields filled in
 func getUserExpendableStars(userid int) (User, error) {
@@ -281,43 +327,10 @@ func updateMovieStars(userid int, movieid int, color string, count int) error {
     return nil
 }
 
-// updateViewDlCount() updates the database about views and downloads on a movie
-func updateViewDlCount(movieid int, t string) error {
-    var q string
-    switch t {
-    case "dl":
-        q = SQL_MOVIE_UPDATE_DL
-    case "ppm":
-        q = SQL_MOVIE_UPDATE_VIEWS
-    }
-    if _, err := db.Exec(q, movieid); err != nil {
-        return err
-    }
-    return nil
-}
-
-// checkMovieExistsAfn() checks whether a movie has already been uploaded by looking for a movie with the same filename
-func checkMovieExistsAfn(afn string) (bool, error) {
-    var exists bool
-
-    err := db.QueryRow(SQL_MOVIE_CHECK_EXISTS_AFN, afn).Scan(&exists)
-    if err != nil {
-        return false, err
-    }
-
-    return exists, nil
-}
 
 //
-func getUserMovieRatelimit(userid int) (bool, time.Time, error) {
-    var d sql.NullTime
-    
-    if err := db.QueryRow(SQL_USER_RATELIMIT, userid).Scan(&d); err != nil {
-        return false, time.Time{}, err
-    }
-    
-    return d.Valid, d.Time, nil
-}
+// WHITELIST
+//
 
 // whitelistAddFsid() adds an FSID to the auth whitelist, so that it immediately passes validation
 func whitelistAddFsid(fsid string) error {
@@ -345,6 +358,11 @@ func whitelistQueryFsid(fsid string) (bool, error) {
     return v, nil
 }
 
+
+//
+// BAN
+//
+
 // checkIsBanned() checks whether an IP/FSID is banned and returns true/false
 func checkIsBanned(affected string) (bool, error) {
     var exists bool
@@ -356,13 +374,13 @@ func checkIsBanned(affected string) (bool, error) {
 }
 
 // queryBan() checks whether an IP/FSID is banned and returns all information about the ban
-func queryBan(affected string) (bool, restriction, error) {
-    b := restriction{}
-    err := db.QueryRow(SQL_USER_BAN_QUERY, affected).Scan(&b.banid, &b.issuer, &b.issued, &b.expires, &b.message, &b.pardon, &b.affected)
+func queryBan(affected string) (bool, Ban, error) {
+    b := Ban{}
+    err := db.QueryRow(SQL_USER_BAN_QUERY, affected).Scan(&b.ID, &b.Issuer, &b.Issued, &b.Expires, &b.Message, &b.Pardon, &b.Affected)
     if err == sql.ErrNoRows {
-        return false, restriction{}, nil
+        return false, Ban{}, nil
     } else if err != nil {
-        return false, restriction{}, err
+        return false, Ban{}, err
     }
     return true, b, nil
 }
@@ -384,7 +402,7 @@ func issueBan(iss string, exp time.Time, affected string, msg string, ce bool) e
     return nil
 }
 
-// pardonBanId() will pardon a ban by its ID when given an integer argument
+// pardonBan() will pardon a ban by its ID when given an integer argument
 // and the latest active ban on an FSID or IP when given a string argument
 func pardonBan(in any) error {
     switch in.(type) {
@@ -399,6 +417,11 @@ func pardonBan(in any) error {
     }
     return nil
 }
+
+
+//
+// USER
+//
 
 // registerUserDsi() updates the database and adds a record for a new user
 func registerUserDsi(username string, password string, fsid string, ip string) (int, error) {
@@ -438,6 +461,23 @@ func updateUserLastLogin(userid int, ip string) error {
     }
     return nil
 }
+
+// getUserMovieRatelimit() returns true/false and when the ratelimit is lifted,
+// if applicable
+func getUserMovieRatelimit(userid int) (bool, time.Time, error) {
+    var d sql.NullTime
+    
+    if err := db.QueryRow(SQL_USER_RATELIMIT, userid).Scan(&d); err != nil {
+        return false, time.Time{}, err
+    }
+    
+    return d.Valid, d.Time, nil
+}
+
+
+//
+// API
+//
 
 // registerApiToken() will create a unique token for API access
 // Not implemented yet

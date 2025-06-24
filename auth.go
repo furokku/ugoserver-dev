@@ -117,7 +117,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             msg := MSG_ERROR_REF + ref
 
             if err == ErrFsidBan || err == ErrIpBan {
-                msg = fmt.Sprintf("you have been banned until\n%s UTC\n\nreason: %s\n\nreference: %s", r.expires.UTC().Format(time.DateTime), r.message, ref)
+                msg = fmt.Sprintf("you have been banned until\n%s UTC\n\nreason: %s\n\nreference: %s", r.Expires.UTC().Format(time.DateTime), r.Message, ref)
             }
 
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
@@ -261,10 +261,10 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 // validate() method will take a session and check if the user is banned or otherwise has any inconsistencies
-func (a Session) validate() (restriction, error) {
+func (a Session) validate() (Ban, error) {
 
     // empty restriction
-    e := restriction{}
+    e := Ban{}
 
 
     if ok, err := whitelistQueryFsid(a.FSID); err != nil {
@@ -327,7 +327,7 @@ func pruneSids() {
         time.Sleep(5 * time.Minute)
 
         for k, v := range sessions {
-            if time.Since(v.Issued).Seconds() >= 7200 {
+            if time.Since(v.Issued).Seconds() >= 1800 {
                 delete(sessions, k)
             }
         }

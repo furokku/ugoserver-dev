@@ -288,7 +288,7 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
 
 
 // 
-// REPLIES
+// COMMENTS/REPLIES
 //
 
 func replyHandler(w http.ResponseWriter, r *http.Request) {
@@ -297,7 +297,7 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
 
     switch vars["ext"] {
     case "npf":
-        id, err := strconv.Atoi(vars["replyid"])
+        id, err := strconv.Atoi(vars["commentid"])
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
@@ -351,7 +351,7 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-// replyPost handler handles requests for .npf (reply image data) and .reply (replying to a movie)
+// replyPost handler handles requests for .npf (reply image data) and .reply (commenting on a movie)
 func replyPost(w http.ResponseWriter, r *http.Request) {
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     v := mux.Vars(r)
@@ -398,7 +398,7 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    id, err := addMovieReplyMemo(s.UserID, movieid)
+    id, err := addMovieCommentMemo(s.UserID, movieid)
     if err != nil {
         errorlog.Printf("while adding movie reply to database: %v", err)
         return
