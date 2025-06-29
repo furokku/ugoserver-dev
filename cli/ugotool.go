@@ -2,6 +2,7 @@ package main
 
 import (
 	"floc/ugoserver/nxlib"
+	"time"
 
 	"github.com/esimov/colorquant"
 
@@ -30,8 +31,8 @@ import (
 )
 
 const (
-    minw = 100
-    minh = 100
+    minw = 200
+    minh = 200
 )
 
 func print_usage() {
@@ -259,6 +260,7 @@ func view(im string, w, h int) {
                 }
                 pixbuf = sb.RGBA()
             }
+            time.Sleep(time.Millisecond*5)
         }
     })
 }
