@@ -25,10 +25,6 @@ import (
 	"floc/ugoserver/nxlib"
 )
 
-var (
-    modes = map[string]string{"new": "Recent flipnotes"}
-)
-
 const (
     MSG_MOVIE_RATELIMIT string = "rate limit message: %s"
 )
@@ -257,7 +253,7 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
 
     // TODO: other page modes ie most popular
     base.setTopScreenText("Feed", fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "","")
-    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=1", mode), modes[mode], true)
+    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=1", mode), mode, true)
 
     if p > 1 {
         base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=%d", mode, p-1), 100, "Previous")
@@ -470,7 +466,7 @@ func movieChannelFeed(w http.ResponseWriter, r *http.Request) {
 
     // meta
     base.setTopScreenText(ds, fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "", dl)
-    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=1", id, mode), modes[mode], true)
+    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=1", id, mode), mode, true)
     // check is logged in
     base.addCorner(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/flipnote.post?channel=%d", id), "Post flipnote")
 

@@ -446,7 +446,7 @@ func getUserDsi(fsid string) (int, string, error) {
     var userid int
     var last_login_ip string
     if err := db.QueryRow(SQL_USER_GET_BY_FSID, fsid).Scan(&userid, &last_login_ip); err == sql.ErrNoRows {
-        return 0, "", ErrNoUser
+        return 0, "", nil // no point in returning an error
     } else if err != nil {
         return 0, "", err
     }

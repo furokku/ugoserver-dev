@@ -61,6 +61,7 @@ func main() {
     defer infolog.Println("goodbye!")
     
     // barzo dzekuje
+    // mmmmm boilerplate
     if err := load_config(false); err != nil {
         errorlog.Fatalf("failed to load configuration: %v", err)
     }
@@ -69,6 +70,9 @@ func main() {
     }
     if err := load_templates(false); err != nil {
         errorlog.Printf("failed to load templates: %v", err)
+    }
+    if err := load_text(false); err != nil {
+        errorlog.Printf("failed to load text data: %v", err)
     }
 
     // listen for ^C

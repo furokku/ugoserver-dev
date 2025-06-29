@@ -11,21 +11,19 @@ import (
 // eula handler returns text files in static/txt as utf16le
 func eula(w http.ResponseWriter, r *http.Request) {
 
-    vars := mux.Vars(r)
-    txt := vars["txt"]
-
-    text, err := os.ReadFile(fmt.Sprintf("%s/static/txt/%s.txt", cnf.Dir, txt))
-    if err != nil {
-        warnlog.Printf("failed to read %v: %v", txt, err)
-        text = []byte("\n\nThis is a placeholder.\nYou shouldn't see this.")
+    name := mux.Vars(r)["txt"]
+    
+    content, ok := texts[name]
+    if !ok {
+        content = "you're weird"
     }
 
-    w.Write(encUTF16LE(string(text)))
+    w.Write(encUTF16LE(content))
 }
 
 // eulatsv handler returns the eula_list.tsv required by eu versions of flipnote
 func eulatsv(w http.ResponseWriter, r *http.Request) {
-    w.Write(append(encUTF16LE("English"), "\ten"...))
+    w.Write(append(encUTF16LE("English"), []byte{'\t', 'e', 'n'}...))
 }
 
 // misc handler is here for minor things that need to return something, but don't necessarily matter

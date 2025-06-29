@@ -128,17 +128,18 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         // figure out if user has registered before,
         // whether logging in from the same ip
         // and obtain a user id
-        UserID, last_login_ip, err := getUserDsi(req.FSID)
-        if err == ErrNoUser {
-            req.IsUnregistered = true
-        } else if err != nil {
+        id, last_login_ip, err := getUserDsi(req.FSID)
+        if err != nil {
             errorlog.Printf("while getting user: %v", err)
             w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
             w.Write(encUTF16LE(MSG_ERROR_REF + ref))
             return
         }
 
-        req.UserID = UserID
+        req.UserID = id
+        if id == 0 {
+            req.IsUnregistered = true
+        }
         if ip == last_login_ip {
             req.IsLoggedIn = true
         }
@@ -155,7 +156,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
 }
 
-// nosupport handler accept rev2 clients on /ds/v2/auth and rejects them with a message
+// nosupport handler accept rev1/2 clients on /ds/[v2/]auth and rejects them with a message
 func nosupport(w http.ResponseWriter, r *http.Request) {
 
     switch r.Method {

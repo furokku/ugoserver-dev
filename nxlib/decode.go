@@ -5,6 +5,7 @@ package nxlib
 import (
 	"encoding/binary"
 	"image"
+	"image/color"
 	"io"
 )
 
@@ -16,11 +17,7 @@ func FromNtft(ntft []byte, w, h int) (image.Image, error) {
 	wr := round(w)
 	
 	for y:=0; y<h; y++ {
-		for x:=0; x<wr; x++ {
-			if x >= w { // ignore the padding
-				continue
-			}
-			
+		for x:=0; x<w; x++ {
 			n := (wr * y + x) * 2
 			read := ntft[n:n+2]
 			pix := binary.LittleEndian.Uint16(read)
@@ -41,6 +38,57 @@ func DecodeNtft(r io.Reader, w, h int) (image.Image, error) {
 	}
 	
 	return FromNtft(ntft, w, h)
+}
+
+// see comments for ToNpf
+func FromNpf(npf []byte, w, h int) (image.Image, error) {
+	im := image.NewNRGBA(image.Rect(0, 0, w, h))
+	
+	wr := round(w)/2 // One byte is two pixels
+	
+	// check magic
+	if string(npf[0:4]) != image_magic {
+		return nil, ErrNotNx
+	}
+	
+	// check sections
+	if binary.LittleEndian.Uint32(npf[4:8]) != 2 {
+		return nil, ErrNot2Sects
+	}
+	
+	// palette and image data length
+	pl := int(binary.LittleEndian.Uint32(npf[8:12]))// # of colors
+	//il := int(binary.LittleEndian.Uint32(npf[12:16]))
+	
+	colors := make(map[int]color.NRGBA, 16)
+	colors[0] = color.NRGBA{R: 0, G: 0, B: 0, A:0} // this is always reserved for transparency
+	pn := pl/2-1
+	for i:=1; i<=pn; i++ {
+		n := 0x10 + i*2
+		c := binary.LittleEndian.Uint16(npf[n:n+2])
+		colors[i] = unpackabgr(c, false)
+	}
+	
+	for y:=0; y<h; y++ {
+		for x:=0; x<w; x+=2 {
+			n := 0x10+pl + y*wr + x/2
+			d := npf[n]
+			//fmt.Printf("X=%d Y=%d n=%d RAW=%x\n", x, y, n, d)
+			im.SetNRGBA(x, y, colors[int(d&0xf)])
+			im.SetNRGBA(x+1, y, colors[int((d>>4))])
+		}
+	}
+	
+	return im.SubImage(im.Bounds()), nil
+}
+
+func DecodeNpf(r io.Reader, w, h int) (image.Image, error) {
+	ntft, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	
+	return FromNpf(ntft, w, h)
 }
 
 // ppm: flipnote studio animation format
@@ -96,10 +144,7 @@ func FromPpm(ppm []byte) ([]image.Image, error) {
 	
 	// read each frame and its header
 	for n:=0; n<fn; n++ {
-		this := frame{
-		  	layer1: make([][]uint8, 192),
-		  	layer2: make([][]uint8, 192),
-		}
+		this := frame{}
 		
 		//fmt.Printf("reading frame at %08x\n", offsets[n])
 		cur := 0x6a8 + fots + offsets[n] // The next byte(s) that will be read
@@ -121,8 +166,8 @@ func FromPpm(ppm []byte) ([]image.Image, error) {
 		cur += 1
 		
 		// arrays of line encodings for 192 lines (h)
-		le1 := make([]uint8, 192) // top layer
-		le2 := make([]uint8, 192) // bottom layer
+		le1 := [192]uint8{} // top layer
+		le2 := [192]uint8{} // bottom layer
 		li := 0 // index
 		
 		// unpack line encoding from 48 bytes to 192 2-bit values
@@ -146,8 +191,8 @@ func FromPpm(ppm []byte) ([]image.Image, error) {
 
 		// decode and read the lines
 		for y:=0; y<384; y++ { // Read 192 lines * 2 layers
-			line1 := make([]uint8, 256) // array of pixels in the line (w), layer 1
-			line2 := make([]uint8, 256) // layer 2
+			line1 := [256]uint8{} // array of pixels in the line (w), layer 1
+			line2 := [256]uint8{} // layer 2
 			pix := 0
 			
 			yr := y

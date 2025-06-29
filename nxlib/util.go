@@ -20,6 +20,8 @@ var (
     ErrNbfInvalidSize = errors.New("nbf must be 256x192")
     ErrNotPpm = errors.New("data is missing ppm file magic. not a ppm")
     ErrOffsetBeyondData = errors.New("frame offset is beyond possible limits")
+    ErrNotNx = errors.New("missing magic")
+    ErrNot2Sects = errors.New("image has != 2 sections")
 
     // ppm colors
 	black = color.NRGBA{ R: 0x0e, G: 0x0e, B: 0x0e, A: 0xff }
@@ -30,8 +32,8 @@ var (
 
 // a single animation frame in a ppm
 type frame struct {
-	layer1 [][]uint8
-	layer2 [][]uint8
+	layer1 [192][256]uint8
+	layer2 [192][256]uint8
 	pen1 int
 	pen2 int
 	paper int
@@ -101,7 +103,7 @@ func framepen(pe int, pa int) (color.NRGBA, color.NRGBA) {
 
 	switch pe {
 	case 1:
-		pec = inversepen(pac)
+		pec = func() color.NRGBA { if pa == 1 { return black }; return white}() // simpler
 	case 2:
 		pec = red
 	case 3:
@@ -109,13 +111,4 @@ func framepen(pe int, pa int) (color.NRGBA, color.NRGBA) {
 	}
 	
 	return pec, pac
-}
-
-func inversepen(in color.NRGBA) color.NRGBA {
-	// pen color 1 is the inverse of the paper color
-	if in == black {
-		return white
-	} else {
-		return black
-	}
 }

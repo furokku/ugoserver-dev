@@ -12,6 +12,7 @@ import (
 	_ "image/png"
 
 	"fmt"
+	"strconv"
 	"strings"
 
 	"bufio"
@@ -20,10 +21,21 @@ import (
 
 	"os"
 	"os/signal"
+
+	"golang.org/x/exp/shiny/driver"
+	"golang.org/x/exp/shiny/screen"
+	"golang.org/x/mobile/event/key"
+	"golang.org/x/mobile/event/lifecycle"
+	"golang.org/x/mobile/event/size"
+)
+
+const (
+    minw = 100
+    minh = 100
 )
 
 func print_usage() {
-    fmt.Printf("usage: %v console [address] | img/imgq infile.jpg/png outfile.npf/nbf/ntft\n", os.Args[0])
+    fmt.Printf("usage: %v console [address] | img/imgq im.jpg/png out.npf/nbf/ntft | view im.npf/nbf/ntft width height\n", os.Args[0])
     os.Exit(1)
 }
 
@@ -53,6 +65,19 @@ func main() {
             img(os.Args[2], os.Args[3], true)
         } else {
             print_usage()
+        }
+        
+    case "view":
+        if len(os.Args) >= 5 {
+            w, err := strconv.Atoi(os.Args[3])
+            if err != nil {
+                print_usage()
+            }
+            h, err := strconv.Atoi(os.Args[4])
+            if err != nil {
+                print_usage()
+            }
+            view(os.Args[2], w, h)
         }
     default:
         print_usage()
@@ -105,18 +130,18 @@ func console(addr string) {
     }
 }
 
-func img(infile string, outfile string, quantize bool) {
+func img(im string, out string, quantize bool) {
 
-    spl := strings.Split(outfile, ".")
+    spl := strings.Split(out, ".")
     ext := spl[len(spl)-1]
     
-    fi, err := os.Open(infile)
+    fi, err := os.Open(im)
     if err != nil {
         panic(err)
     }
     defer fi.Close()
     
-    fo, err := os.OpenFile(outfile, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fo, err := os.OpenFile(out, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         panic(err)
     }
@@ -156,5 +181,84 @@ func img(infile string, outfile string, quantize bool) {
         }
     }
     
-    fmt.Printf("encoded %v (%dx%d) to %v", infile, src.Bounds().Max.X, src.Bounds().Max.Y, outfile)
+    fmt.Printf("encoded %v (%dx%d) to %v", im, src.Bounds().Max.X, src.Bounds().Max.Y, out)
+}
+
+func view(im string, w, h int) {
+
+    spl := strings.Split(im, ".")
+    ext := spl[len(spl)-1]
+    
+    fi, err := os.Open(im)
+    if err != nil {
+        panic(err)
+    }
+    
+    var junk image.Image
+    
+    switch ext {
+    case "npf":
+        junk, err = nxlib.DecodeNpf(fi, w, h)
+        if err != nil {
+            panic(err)
+        }
+    case "ntft":
+        junk, err = nxlib.DecodeNtft(fi, w, h)
+        if err != nil {
+            panic(err)
+        }
+    default:
+        print_usage()
+    }
+    
+    wiw := func() int { if w>minw { return w }; return minw }()
+    wih := func() int { if h>minh { return h }; return minh }()
+    // start all of the gui stuff
+    driver.Main(func(s screen.Screen) {
+        wi, err := s.NewWindow(&screen.NewWindowOptions{
+            Title: fmt.Sprintf("ugotool: viewing %s", im),
+            Width: wiw,
+            Height: wih,
+        })
+        if err != nil {
+            panic(err)
+        }
+        defer wi.Release()
+
+        sb, err := s.NewBuffer(image.Point{wiw, wih})
+        if err != nil {
+            panic(err)
+        }
+        defer sb.Release()
+        pixbuf := sb.RGBA()
+        
+        for {
+            draw.Draw(pixbuf, pixbuf.Bounds(), junk, image.Point{}, draw.Src)
+            //wi.Send(paint.Event{External:true})
+            wi.Upload(image.Point{0, 0}, sb, sb.Bounds())
+            wi.Publish()
+            
+            switch e := wi.NextEvent().(type) {
+            case key.Event:
+                if e.Code == key.CodeEscape {
+                    return
+                }
+                
+            case lifecycle.Event:
+                if e.To == lifecycle.StageDead {
+                    return
+                }
+                
+            case size.Event:
+                // will crash if width/height == 0; workaround:
+                es := image.Point{func()int{if e.WidthPx==0{return 1}; return e.WidthPx}(),func()int{if e.HeightPx==0{return 1}; return e.HeightPx}()}
+                sb.Release()
+                sb, err = s.NewBuffer(es)
+                if err != nil {
+                    panic(err)
+                }
+                pixbuf = sb.RGBA()
+            }
+        }
+    })
 }

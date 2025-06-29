@@ -143,14 +143,23 @@ func load_text(reload bool) error { // finish
     
     temp := make(map[string]string)
 
-    rd, err := os.ReadDir(cnf.Dir + "/static/text")
+    rd, err := os.ReadDir(fmt.Sprintf("%s/static/text", cnf.Dir))
     if err != nil {
         return err
     }
     for _, text := range rd {
         name := strings.Split(text.Name(), ".")[0]
-
+        content, err := os.ReadFile(fmt.Sprintf("%s/static/text/%s.txt", cnf.Dir, name))
+        if err != nil {
+            errorlog.Printf("load_text: failed to read %s: %v", name, err)
+            continue
+        }
+        
+        temp[name] = string(content)
     }
+    
+    texts = temp
+    infolog.Printf("load_text: loaded %d text files", len(texts))
     
     return nil
 }
