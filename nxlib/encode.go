@@ -23,6 +23,7 @@ func ToNpf(img image.Image) ([]byte, error) {
     colors := make(map[color.Color]int, 15)
 
     xm := img.Bounds().Max.X
+    xr := round(xm)
 
     for y:=0; y < img.Bounds().Max.Y; y++ {
         // Cycle through each pixel to get a palette
@@ -30,7 +31,7 @@ func ToNpf(img image.Image) ([]byte, error) {
         // each pixel as an index in the palette
         //
         // We will then use this to encode the image
-        for x:=0; x < round(xm); x++ {
+        for x:=0; x < xr; x++ {
             c := img.At(x, y)
             if x >= xm {
                 c = img.At(xm-1, y)
@@ -97,19 +98,20 @@ func EncodeNpf(w io.Writer, m image.Image) error {
 }
 
 
-// nbf: ugomemo image format, used mainly for top screen backgrounds in html/ugomenus
-// similar to npf
-// apparently should always be 256x192, but idk, so size isn't checked
-// Has no support for transparency, 256 colors
+// nbf: ugomemo image format, used mainly for top screen backgrounds in html/ugomenus;
+// similar to NPF but uses 8-bit index for image data, so max 256 colors,
+// apparently should always be 256x192, but idk, so size isn't checked;
+// Has no support for transparency
 func ToNbf(img image.Image) ([]byte, error) {
     var im []int
     var out []byte
     colors := make(map[color.Color]int, 256)
     
     xm := img.Bounds().Max.X
+    xr := round(xm)
 
-    for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
-        for x := img.Bounds().Min.X; x < round(xm); x++ {
+    for y := 0; y < img.Bounds().Max.Y; y++ {
+        for x := 0; x < xr; x++ {
             c := img.At(x, y)
             if x >= xm {
                 c = img.At(xm-1, y)
@@ -138,7 +140,7 @@ func ToNbf(img image.Image) ([]byte, error) {
     out = append(out, image_magic...)
     out = binary.LittleEndian.AppendUint32(out, 2) // # of sections
     out = binary.LittleEndian.AppendUint32(out, 512) // palette section length
-    out = binary.LittleEndian.AppendUint32(out, uint32(len(im)/2))
+    out = binary.LittleEndian.AppendUint32(out, uint32(len(im)))
 //  fmt.Printf("image section length %v\n", len(im)/2)
 
     for i:=1; i <= len(colors); i++ {
@@ -153,10 +155,11 @@ func ToNbf(img image.Image) ([]byte, error) {
             out = append(out, []byte{0x00, 0x00}...)
         }
     }
-    for i:=0; i < len(im); i+=2 {
-        b := uint8((im[i+1] << 4) | im[i])
+    for i:=0; i < len(im); i++ {
+        // Oops
+        //b := uint8((im[i+1] << 4) | im[i])
 //      fmt.Printf("byte n=%d %2x\n", i/2, b)
-        out = append(out, b)
+        out = append(out, uint8(im[i]))
     }
 
     return out, nil

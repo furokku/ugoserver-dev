@@ -60,7 +60,7 @@ func FromNpf(npf []byte, w, h int) (image.Image, error) {
 	pl := int(binary.LittleEndian.Uint32(npf[8:12]))// # of colors
 	//il := int(binary.LittleEndian.Uint32(npf[12:16]))
 	
-	colors := make(map[int]color.NRGBA, 16)
+	colors := [16]color.NRGBA{}
 	colors[0] = color.NRGBA{R: 0, G: 0, B: 0, A:0} // this is always reserved for transparency
 	pn := pl/2-1
 	for i:=1; i<=pn; i++ {
@@ -83,6 +83,58 @@ func FromNpf(npf []byte, w, h int) (image.Image, error) {
 }
 
 func DecodeNpf(r io.Reader, w, h int) (image.Image, error) {
+	ntft, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	
+	return FromNpf(ntft, w, h)
+}
+
+// Basically the same
+func FromNbf(nbf []byte, w, h int) (image.Image, error) {
+	im := image.NewNRGBA(image.Rect(0, 0, w, h))
+	
+	wr := round(w)/2 // One byte is two pixels
+	
+	// check magic
+	if string(nbf[0:4]) != image_magic {
+		return nil, ErrNotNx
+	}
+	
+	// check sections
+	if binary.LittleEndian.Uint32(nbf[4:8]) != 2 {
+		return nil, ErrNot2Sects
+	}
+	
+	// palette and image data length
+	pl := int(binary.LittleEndian.Uint32(nbf[8:12]))// # of colors
+	//il := int(binary.LittleEndian.Uint32(npf[12:16]))
+	
+	colors := [256]color.NRGBA{}
+	// Not on nbf it isn't
+	//colors[0] = color.NRGBA{R: 0, G: 0, B: 0, A:0} // this is always reserved for transparency
+	pn := pl/2
+	for i:=0; i<=pn; i++ {
+		n := 0x10 + i*2
+		c := binary.LittleEndian.Uint16(nbf[n:n+2])
+		colors[i] = unpackabgr(c, false)
+	}
+	
+	for y:=0; y<h; y++ {
+		for x:=0; x<w; x+=2 {
+			n := 0x10+pl + y*wr + x/2
+			d := nbf[n]
+			//fmt.Printf("X=%d Y=%d n=%d RAW=%x\n", x, y, n, d)
+			im.SetNRGBA(x, y, colors[int(d&0xf)])
+			im.SetNRGBA(x+1, y, colors[int((d>>4))])
+		}
+	}
+	
+	return im.SubImage(im.Bounds()), nil
+}
+
+func DecodeNbf(r io.Reader, w, h int) (image.Image, error) {
 	ntft, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
