@@ -30,6 +30,10 @@ package main
 // Creator's room
 // Documentation
 // Inform the user when the session expires within flipnote studio
+//
+// A little monologue for myself here
+// 4th of july, 2025, 1:53am-GMT+2: some of my last lines of code written
+// in ukraine. Oh how far I've come.
 
 import (
 	"database/sql"

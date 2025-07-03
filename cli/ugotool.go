@@ -2,7 +2,6 @@ package main
 
 import (
 	"floc/ugoserver/nxlib"
-	"time"
 
 	"github.com/esimov/colorquant"
 
@@ -15,6 +14,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"bufio"
 	"io"

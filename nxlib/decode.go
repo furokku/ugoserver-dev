@@ -74,8 +74,8 @@ func FromNpf(npf []byte, w, h int) (image.Image, error) {
 			n := 0x10+pl + y*wr + x/2
 			d := npf[n]
 			//fmt.Printf("X=%d Y=%d n=%d RAW=%x\n", x, y, n, d)
-			im.SetNRGBA(x, y, colors[int(d&0xf)])
-			im.SetNRGBA(x+1, y, colors[int((d>>4))])
+			im.SetNRGBA(x, y, colors[d&0xf])
+			im.SetNRGBA(x+1, y, colors[d>>4])
 		}
 	}
 	
@@ -91,11 +91,11 @@ func DecodeNpf(r io.Reader, w, h int) (image.Image, error) {
 	return FromNpf(ntft, w, h)
 }
 
-// Basically the same
+// Basically the same, except not
 func FromNbf(nbf []byte, w, h int) (image.Image, error) {
 	im := image.NewNRGBA(image.Rect(0, 0, w, h))
 	
-	wr := round(w)/2 // One byte is two pixels
+	wr := round(w) ///2 // One byte is two pixels-not applicable
 	
 	// check magic
 	if string(nbf[0:4]) != image_magic {
@@ -122,12 +122,12 @@ func FromNbf(nbf []byte, w, h int) (image.Image, error) {
 	}
 	
 	for y:=0; y<h; y++ {
-		for x:=0; x<w; x+=2 {
-			n := 0x10+pl + y*wr + x/2
-			d := nbf[n]
+		for x:=0; x<w; x++ {
+			n := 0x10+pl + y*wr + x
+			//d := nbf[n]
 			//fmt.Printf("X=%d Y=%d n=%d RAW=%x\n", x, y, n, d)
-			im.SetNRGBA(x, y, colors[int(d&0xf)])
-			im.SetNRGBA(x+1, y, colors[int((d>>4))])
+			im.SetNRGBA(x, y, colors[nbf[n]])
+			//im.SetNRGBA(x+1, y, colors[int((d>>4))]) // fix this
 		}
 	}
 	
