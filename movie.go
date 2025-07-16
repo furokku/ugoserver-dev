@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"floc/ugoserver/nxlib"
+	"floc/ugoserver/nx"
 )
 
 const (
@@ -366,7 +366,7 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    im, err := nxlib.FromPpm(reply)
+    im, err := nx.FromPpm(reply)
     if err != nil {
         errorlog.Printf("while decoding reply: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -388,7 +388,7 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
 
     colorquant.NoDither.Quantize(src, dst, 15, false, true)
 
-    npf, err := nxlib.ToNpf(dst)
+    npf, err := nx.ToNpf(dst)
     if err != nil {
         errorlog.Printf("while converting reply to npf: %v", err)
         return

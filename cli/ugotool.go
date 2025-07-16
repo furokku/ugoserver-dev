@@ -1,7 +1,7 @@
 package main
 
 import (
-	"floc/ugoserver/nxlib"
+	"floc/ugoserver/nx"
 
 	"github.com/esimov/colorquant"
 
@@ -165,18 +165,18 @@ func img(im string, out string, quantize bool) {
     switch ext {
     case "npf":
         if quantize { img = colorquant.NoDither.Quantize(src, dst, 15, false, true) }
-        err := nxlib.EncodeNpf(fo, img)
+        err := nx.EncodeNpf(fo, img)
         if err != nil {
             panic(err)
         }
     case "nbf":
         if quantize { img = colorquant.NoDither.Quantize(src, dst, 256, false, true) }
-        err := nxlib.EncodeNbf(fo, img)
+        err := nx.EncodeNbf(fo, img)
         if err != nil {
             panic(err)
         }
     case "ntft":
-        err := nxlib.EncodeNtft(fo, src)
+        err := nx.EncodeNtft(fo, src)
         if err != nil {
             panic(err)
         }
@@ -199,12 +199,17 @@ func view(im string, w, h int) {
     
     switch ext {
     case "npf":
-        junk, err = nxlib.DecodeNpf(fi, w, h)
+        junk, err = nx.DecodeNpf(fi, w, h)
+        if err != nil {
+            panic(err)
+        }
+    case "nbf":
+        junk, err = nx.DecodeNbf(fi, w, h)
         if err != nil {
             panic(err)
         }
     case "ntft":
-        junk, err = nxlib.DecodeNtft(fi, w, h)
+        junk, err = nx.DecodeNtft(fi, w, h)
         if err != nil {
             panic(err)
         }
