@@ -8,6 +8,7 @@ import (
 
 	"time"
 
+	"slices"
 	"strconv"
 )
 
@@ -20,6 +21,8 @@ const (
     MSG_EARLY_ERROR string = "an error occurred during\nearly authentication."
     MSG_ERROR_REF string = "an error occured. try again later\nreference: "
 )
+
+var GAMECODES = []string{"KGUE", "KGUV", "KGUJ"}
 
 // dsi_am middleware checks whether a user is logged in, and optionally redirects them
 // to a log in page if they are not
@@ -179,6 +182,15 @@ func nosupport(w http.ResponseWriter, r *http.Request) {
 func nasAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
+
+    // check game code in http header
+    gcdh := r.Header.Get("HTTP_X_GAMECD")
+    if !slices.Contains(GAMECODES, gcdh) {
+        warnlog.Printf("unknown gamecode %s", gcdh)
+    w.WriteHeader(http.StatusBadRequest)
+    return
+    }
+
     body, _ := io.ReadAll(r.Body)
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
@@ -211,6 +223,8 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
         case "/ac":
 
+            // check game code
+	    //gcdr := nasRequest.Get("gamecd") // KGUE (U), KGUV (E), KGUJ (J)
             bssid := nasRequest.Get("bssid")
             // Emulator check
             // Most users who try to use an emulator won't
@@ -243,7 +257,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                     resp.Set("UserID", nasEncode("notimportant"))
 
                 default:
-                    debuglog.Printf("action %s", action)
+                    debuglog.Printf("nas action %s", action)
                     w.WriteHeader(http.StatusBadRequest) // unimplemented functionality or something fishy
                     return
             }

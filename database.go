@@ -355,7 +355,7 @@ func whitelistQueryFsid(fsid string) (bool, error) {
     if err != nil {
         return false, err
     }
-    return v, nil
+    return false, nil
 }
 
 

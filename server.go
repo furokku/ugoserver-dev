@@ -52,6 +52,8 @@ import (
 var (
     db *sql.DB
 
+	err error
+
     sessions = make(map[string]Session)
 )
 
@@ -86,7 +88,7 @@ func main() {
     // connect to db
     cs := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
     
-    db, err := sql.Open("postgres", cs)
+    db, err = sql.Open("postgres", cs)
     if err != nil {
         errorlog.Fatalf("could not connect to database: %v", err)
     }
@@ -178,7 +180,7 @@ func main() {
     // static content
     h.PathPrefix("/images").HandlerFunc(static)
     h.PathPrefix("/css").HandlerFunc(static)
-    h.Path("/robots.txt").HandlerFunc(static)
+    h.Path("/robots.txt").HandlerFunc(misc)
     
     // mail test
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(dsi_am(menus["addresstest"].handle(), false, false))

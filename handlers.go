@@ -47,6 +47,12 @@ func misc(w http.ResponseWriter, r *http.Request) {
     case "/ds/v2-us/":
         bytes, _ := os.ReadFile("static/images/ds/8x8test.npf")
         w.Write(bytes)
+	case "/robots.txt":
+		b, ok := texts["robots"]
+		if !ok {
+			b = "beep boop bitch"
+		}
+		w.Write([]byte(b))
     }
     
 }
@@ -54,7 +60,7 @@ func misc(w http.ResponseWriter, r *http.Request) {
 // static handler returns the file from cnf.Dir/static/path
 func static(w http.ResponseWriter, r *http.Request) {
     file, err := os.ReadFile(fmt.Sprintf("%s/static/%s", cnf.Dir, r.URL.Path))
-    if  err != nil {
+    if err != nil {
         w.WriteHeader(http.StatusNotFound)
         return
     }
