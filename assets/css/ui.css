@@ -1,0 +1,23 @@
+.bar {
+    text-align: center;
+}
+
+div.login label {
+    display: inline-block;
+    width: 75px;
+}
+
+div.errorbox {
+    border-color: #904040;
+    border-width: 10px;
+
+    background-color: #A07575;
+    width: 200px;
+    
+    margin: 10px;
+}
+
+a, a:visited {
+    text-decoration: none;
+    color: #282828;
+}

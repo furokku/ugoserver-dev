@@ -25,15 +25,18 @@ package main
 // Mail
 // More sorting modes
 // API
-// Web interface
+// Web interface W
 // Build channels menu automatically W
 // Creator's room
 // Documentation
 // Inform the user when the session expires within flipnote studio
+// link multiple consoles to one account (multi fsid -> single user id)
 //
 // A little monologue for myself here
-// 4th of july, 2025, 1:53am-GMT+2: some of my last lines of code written
+// 4th of july, 2025, 1:53am-GMT+3: some of my last lines of code written
 // in ukraine. Oh how far I've come.
+// 14th of august, 2025, 7:19pm-GMT-5:
+// why cant we run a fucking bus in america
 
 import (
 	"database/sql"
@@ -51,14 +54,11 @@ import (
 
 var (
     db *sql.DB
-
 	err error
 
+    // only now realized that windows doesnt have a mythical /tmp directory
+    SOCKET_FILE = fmt.Sprint(os.TempDir(), "/ugoserver.sock")
     sessions = make(map[string]Session)
-)
-
-const (
-    SOCKET_FILE = "/tmp/ugoserver.sock"
 )
 
 func main() {
@@ -71,14 +71,16 @@ func main() {
     if err := load_config(false); err != nil {
         errorlog.Fatalf("failed to load configuration: %v", err)
     }
+
+    if err := load_html(false); err != nil {
+        errorlog.Printf("failed to load html assets: %v", err)
+    }
+    if err := load_assets(false); err != nil {
+        errorlog.Printf("failed to load other assets: %v", err)
+    }
+
     if err := load_menus(false); err != nil {
         errorlog.Printf("failed to load menus: %v", err)
-    }
-    if err := load_templates(false); err != nil {
-        errorlog.Printf("failed to load templates: %v", err)
-    }
-    if err := load_text(false); err != nil {
-        errorlog.Printf("failed to load text data: %v", err)
     }
 
     // listen for ^C
@@ -88,6 +90,7 @@ func main() {
     // connect to db
     cs := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
     
+    // we learning how to golang gng
     db, err = sql.Open("postgres", cs)
     if err != nil {
         errorlog.Fatalf("could not connect to database: %v", err)
@@ -134,14 +137,14 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
 
     // eula
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula)}.txt").Methods("GET").HandlerFunc(eula)
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(eula)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula).txt}").Methods("GET").HandlerFunc(eula)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload).txt}").Methods("GET").HandlerFunc(eula)
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(eulatsv) // eu
 
     // static ugomenus
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(dsi_am(menus["index"].handle(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["index"].handle(), false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(dsi_am(channelMainMenu, false, false)) //todo: query db for channels
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(menus["debug"].handle(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["debug"].handle(), false, false))
 
     // comments
     // note: Due to how the servemux works, this has to be before
@@ -178,17 +181,19 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/jump").HandlerFunc(dsi_am(jump, false, false))
 
     // static content
-    h.PathPrefix("/images").HandlerFunc(static)
-    h.PathPrefix("/css").HandlerFunc(static)
+    h.PathPrefix("/images").HandlerFunc(asset) // application/octet-stream
+    h.PathPrefix("/css").HandlerFunc(css) // content-type set
     h.Path("/robots.txt").HandlerFunc(misc)
     
     // mail test
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(dsi_am(menus["addresstest"].handle(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["addresstest"].handle(), false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail.send").Methods("POST").HandlerFunc(dsi_am(misc, false, false))
     
-    // Planned, maybe
-    h.PathPrefix("/api/v1").HandlerFunc(api)
-    h.PathPrefix("/api/manage").HandlerFunc(mgmt)
+    // website
+    h.Path("/").HandlerFunc(catchall)
+    h.Path("/ui/account.html").HandlerFunc(ui_account)
+
+    h.PathPrefix("/api/auth").HandlerFunc(api_auth)
 
     hatena := &http.Server{Addr: cnf.Listen + ":9000", Handler: h}
 
@@ -211,8 +216,10 @@ func main() {
     ch.register("whitelist", whitelist)
     ch.register("reload", reload)
     ch.register("ban", ban)
+    
+    // stubs
+    ch.register("config", config)
     ch.register("pardon", pardon)
-    ch.register("stat", show)
     ch.register("channel", channel)
     ch.register("movie", movie)
 

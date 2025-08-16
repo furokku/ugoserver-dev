@@ -75,7 +75,8 @@ type (
     // User definition for other things
     User struct {
         ID int
-        FSID int
+        FSID string
+        Username string
         Admin bool
         Deleted bool
         
@@ -83,6 +84,13 @@ type (
         ESred int
         ESblue int
         ESpurple int
+        
+        LastLoginIP string
+        LastLoginTime time.Time
+    }
+    
+    UserPref struct {
+        // stub: will contain user preferences for DS or web ui
     }
     
     // Movie contains all information about a movie, including the amount of comments it has
@@ -171,9 +179,9 @@ type (
         TestType int `json:"test_type,omitempty"`
         TestValues []string `json:"test_values,omitempty"`
     }
-
+    
     // html template data type, only the fields that are needed in a particular template should be set
-    Page struct {
+    DSPage struct {
         Session
         Root string
         Region string
@@ -188,6 +196,19 @@ type (
         // whether the page should display anything extra
         // if you are pushed back to it;
         // example: [..]/ds/v2-eu/sa/register.htm?ret=error
+        Return string
+    }
+    
+    WebPage struct {
+        User
+        UserPref
+        
+        Movie
+        Movies []Movie
+        Comments []Comment
+        Channel
+        Channels []Channel
+
         Return string
     }
 )

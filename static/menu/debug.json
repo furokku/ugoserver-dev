@@ -1,9 +1,0 @@
-{
-    "layout": [4],
-
-    "items": [
-        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/debug.htm", "label": "bogus", "icon": 110},
-        {"type": "button", "url": "ugomemo://quickmemo", "label": "trial n error", "icon": 101},
-        {"type": "test", "test_type": 5, "test_values": ["http://flipnote.hatena.com/images/ds/bleg.npf"]}
-    ]
-}

@@ -1,3 +1,0 @@
-# Do not crawl because almost everything will 401
-User-agent: *
-Disallow: /

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>account page</title>
+        <link rel="Stylesheet" type="text/css" href="/css/ui.css">
+    </head>
+    
+    <body>
+        <div class="bar">[<a href="/">home</a>] - [account]</div>
+        <hr>
+        {{ if eq .User.ID 0 }}
+        <div class="login">
+            {{ if eq .Return "invalidlogin" }}
+            <div class="errorbox">invalid user or password</div>
+            {{ end }}
+            <form action="/api/auth/login" method="post">
+                <label for="userid">userid</label>
+                <input type="text" id="userid" name="userid"><br>
+                <label for="pw">password</label>
+                <input type="password" id="pw" name="pw"><br>
+                <input type="submit" value="sybau">
+            </form>
+        </div>
+        {{else}}
+        <div>
+            <span>you are {{.User.ID}}</span>
+        </div>
+        {{end}}
+    </body>
+</html>

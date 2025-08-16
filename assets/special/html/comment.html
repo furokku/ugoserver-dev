@@ -1,0 +1,27 @@
+<!-- needs a lot of TLC -->
+<html>
+<head>
+<meta name="upperlink" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
+<link rel="stylesheet" href="http://{{.Root}}/css/ds/basic.css">
+
+{{if .Session.IsLoggedIn}}
+<meta name="commentherebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/comment/{{.Movie.ID}}.reply">
+{{end}}
+</head>
+
+<body>
+<p>
+six sevennnnn
+</p>
+<table>
+{{range .Comments}}
+{{if .IsMemo}}
+<tr>
+<td>{{.UserID}}</td>
+<td><img src="http://{{$.Root}}/ds/v2-{{$.Region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
+</tr>
+{{end}}
+{{end}}
+</table>
+</body>
+</html>

@@ -99,7 +99,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
 
-        if err = templates.ExecuteTemplate(w, "movie.html", Page{
+        if err = cache_html.ExecuteTemplate(w, "movie.html", DSPage{
             Session: s,
             Root: cnf.Root,
             Region: s.getregion(),
@@ -333,7 +333,7 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
         
-        if err = templates.ExecuteTemplate(w, "comment.html", Page{
+        if err = cache_html.ExecuteTemplate(w, "comment.html", DSPage{
             Session: s,
             Root: cnf.Root,
             Region: s.getregion(),

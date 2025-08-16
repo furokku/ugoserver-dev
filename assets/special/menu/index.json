@@ -1,0 +1,12 @@
+{
+    "layout": [0],
+
+    "items": [
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=new&page=1", "label": "Browse Flipnotes", "icon": 100},
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/channels.uls", "label": "Channels", "icon": 104},
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/debug.htm", "label": "debug menu", "icon": 117},
+        {"type": "button", "url": "ugomemo://command", "label": "jump", "icon": 102},
+        {"type": "button", "url": "ugomemo://createmail", "label": "mail test", "icon": 101},
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/debug.uls", "label": "debug ugomenu", "icon": 117}
+    ]
+}

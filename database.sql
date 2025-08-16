@@ -56,8 +56,8 @@ CREATE TABLE bans(
 CREATE TABLE apitokens(
     id SERIAL PRIMARY KEY,
     secret VARCHAR(60) UNIQUE NOT NULL,
-    expires TIMESTAMPTZ DEFAULT now() + interval '30 days',
-    userid INT NOT NULL REFERENCES users(id)
+    userid INT NOT NULL REFERENCES users(id),
+    created TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE user_star(
     userid INT NOT NULL REFERENCES users(id),

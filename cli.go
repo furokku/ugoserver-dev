@@ -8,7 +8,7 @@ import (
 
 const (
 	WHITELIST_USAGE string = "usage: whitelist add|del|query FSID"
-	RELOAD_USAGE string = "usage: reload menu|template"
+	RELOAD_USAGE string = "usage: reload web|menus|assets"
     BAN_USAGE string =  "usage: ban [-f] FSID/IP duration message"
 )
 
@@ -65,19 +65,26 @@ func reload(args []string) string {
 	}
 	
 	switch args[0] {
-	case "menu":
+	case "menus":
 		if err := load_menus(true); err != nil {
             errorlog.Printf("load_menus: %v", err)
             return "internal error; check logs (load_menus)"
         }
-		return "reload menus ok"
+		return "ok"
 
-	case "template":
-		if err := load_templates(true); err != nil {
-            errorlog.Printf("load_templates: %v", err)
-            return "internal error; check logs (load_templates)"
+	case "web":
+		if err := load_html(true); err != nil {
+            errorlog.Printf("load_html: %v", err)
+            return "internal error; check logs (load_html)"
         }
-		return "reload templates ok"
+		return "ok"
+        
+	case "assets":
+		if err := load_assets(true); err != nil {
+            errorlog.Printf("load_assets: %v", err)
+            return "internal error; check logs (load_assets)"
+        }
+		return "ok"
         
     default:
         return RELOAD_USAGE
@@ -143,28 +150,15 @@ func pardon(args []string) string {
     return "wip"
 }
 
-// return various information about an object
-// (details tbd)
-func show(args []string) string { // a little cisco inspiration
-	return "wip"
+// view/modify user-created content
+func movie(args []string) string {
+    return "wip"
 }
-
-// create/delete/modify channel
 func channel(args []string) string {
     return "wip"
 }
 
-// create/delete/modify movie
-func movie(args []string) string {
-    return "wip"
-}
-
-// set configuration values while running
+// set/save configuration values while running
 func config(args []string) string {
-    return "wip"
-}
-
-// save configuration to file while running
-func write(args []string) string {
     return "wip"
 }

@@ -2,23 +2,25 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"net/http"
 	"os"
 
 	"github.com/gorilla/mux"
 )
 
-// eula handler returns text files in static/txt as utf16le
 func eula(w http.ResponseWriter, r *http.Request) {
 
     name := mux.Vars(r)["txt"]
     
-    content, ok := texts[name]
+    t, ok := cache_assets[fmt.Sprintf("text/%s", name)]
     if !ok {
-        content = "you're weird"
+        warnlog.Printf("eula: couldn't find %s in assets", name)
+        t = []byte("placeholder")
     }
 
-    w.Write(encUTF16LE(content))
+    w.Write(encUTF16LE(t))
 }
 
 // eulatsv handler returns the eula_list.tsv required by eu versions of flipnote
@@ -45,27 +47,53 @@ func misc(w http.ResponseWriter, r *http.Request) {
     case "/ds/v2-us/mail.send":
         w.WriteHeader(http.StatusOK)
     case "/ds/v2-us/":
-        bytes, _ := os.ReadFile("static/images/ds/8x8test.npf")
-        w.Write(bytes)
+        w.Write(cache_assets["/images/ds/8x8test.npf"])
 	case "/robots.txt":
-		b, ok := texts["robots"]
+		b, ok := cache_assets["text/robots.txt"]
 		if !ok {
-			b = "beep boop bitch"
+			b = []byte("beep boop bitch")
 		}
-		w.Write([]byte(b))
+		w.Write(b)
     }
     
 }
 
-// static handler returns the file from cnf.Dir/static/path
-func static(w http.ResponseWriter, r *http.Request) {
-    file, err := os.ReadFile(fmt.Sprintf("%s/static/%s", cnf.Dir, r.URL.Path))
-    if err != nil {
-        w.WriteHeader(http.StatusNotFound)
-        return
+// return whatever random file from assets/
+func asset(w http.ResponseWriter, r *http.Request) {
+    rs, _ := strings.CutPrefix(r.URL.Path, "/")
+    // try cache
+    c, ok := cache_assets[rs]
+    if !ok {
+        c, err = os.ReadFile(fmt.Sprintf("%s/assets/%s", cnf.Dir, rs))
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+    } else {
+        debuglog.Printf("fetched %s from cache", rs)
     }
+    
+    w.Header().Add("Content-Type", "application/octet-stream")
+    w.Write(c)
+}
 
-    w.Write(file)
+// same as above but content-type header set to css
+func css(w http.ResponseWriter, r *http.Request) {
+    rs, _ := strings.CutPrefix(r.URL.Path, "/")
+    // try cache
+    c, ok := cache_assets[rs]
+    if !ok {
+        c, err = os.ReadFile(fmt.Sprintf("%s/assets/%s", cnf.Dir, rs))                
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+    } else {
+        debuglog.Printf("fetched %s from cache", rs)
+    }
+    
+    w.Header().Add("Content-Type", "text/css")
+    w.Write(c)
 }
 
 // TODO
@@ -79,7 +107,7 @@ func debug(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
     s := sessions[sid]
 
-    if err := templates.ExecuteTemplate(w, "debug.html", Page{
+    if err := cache_html.ExecuteTemplate(w, "debug.html", DSPage{
         Session: s,
         Root: cnf.Root,
         Region: s.getregion(),

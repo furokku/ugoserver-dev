@@ -191,7 +191,12 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
     return
     }
 
-    body, _ := io.ReadAll(r.Body)
+    body, err := io.ReadAll(r.Body)
+    if err != nil {
+        errorlog.Printf("failed to parse form from %v: %v", ip, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
     nasRequest, err := url.ParseQuery(string(body))
     if err != nil {
         errorlog.Printf("bad nas form from %v: %v", ip, err)
@@ -368,7 +373,7 @@ func sa(w http.ResponseWriter, r *http.Request) {
     s := sessions[r.Header.Get("X-Dsi-Sid")]
     ret := r.URL.Query().Get("ret")
 
-    if err := templates.ExecuteTemplate(w, "auth.html", Page{
+    if err := cache_html.ExecuteTemplate(w, "auth.html", DSPage{
         Session: s,
         Root: cnf.Root,
         Region: s.getregion(),
@@ -391,10 +396,10 @@ func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    if v, err := verifyUserDsi(s.UserID, in); err != nil {
+    if v, err := verifyUserById(s.UserID, in); err != nil {
         // handle error
         errorlog.Printf("while verifying user %d, %v", s.UserID, err)
-        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
+        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=error")}
         return
     } else if !v {
         w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=invalid")}
@@ -440,4 +445,75 @@ func sa_reg_kbd(w http.ResponseWriter, r *http.Request) {
 
     w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
     w.WriteHeader(http.StatusOK)
+}
+
+func api_auth(w http.ResponseWriter, r *http.Request) {
+    switch r.URL.Path {
+    case "/api/auth/login": // todo: fsid login
+        body, err := io.ReadAll(r.Body)
+        if err != nil {
+            errorlog.Printf("while reading form body from auth/login: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        debuglog.Println(string(body))
+
+        lf, err := url.ParseQuery(string(body))
+        if err != nil {
+            errorlog.Printf("while parsing form body from auth/login: %v", err)
+            w.Write([]byte("sorry, an unexpected error occurred"))
+            return
+        }
+
+        // todo: determine if first field input is a user id or fsid
+        // for now assume id
+        
+        ids := lf.Get("userid")
+        id, err := strconv.Atoi(ids)
+        if err != nil {
+            errorlog.Printf("while converting id string to int: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            w.Write([]byte("sorry, an unexpected error occurred"))
+            return
+        }
+        
+        success, err := verifyUserById(id, lf.Get("pw"))
+        if err != nil {
+            errorlog.Printf("while verifying user id: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            w.Write([]byte("sorry, an unexpected error occurred"))
+            return
+        }
+        
+        if success {
+            // login cookie
+            secret, err := newApiToken(id)
+            if err != nil {
+                errorlog.Printf("while creating new api token for user %d: %v", id, err)
+                w.WriteHeader(http.StatusInternalServerError)
+                w.Write([]byte("sorry, an unexpected error occurred"))
+                return
+            }
+            
+            http.SetCookie(w, &http.Cookie{
+                Name: "token",
+                Value: secret,
+                
+                Domain: r.Host,
+                Path: "/",
+
+                MaxAge: 0,
+                SameSite: http.SameSiteStrictMode,
+            })
+
+            w.Header().Add("Location", fmt.Sprintf("http://%s/ui/account.html", r.Host))
+            w.WriteHeader(http.StatusSeeOther)
+            return
+        }
+        
+        // assume failure unless above returns
+        w.Header().Add("Location", fmt.Sprintf("http://%s/ui/account.html?ret=invalidlogin", r.Host))
+        w.WriteHeader(http.StatusSeeOther)
+    }
 }

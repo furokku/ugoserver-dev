@@ -50,17 +50,22 @@ const (
     SQL_USER_PARDON_BY_ID string = "UPDATE bans SET pardon = true WHERE id = $1"
     
     SQL_USER_REGISTER_DSI string = "INSERT INTO users (username, password, fsid, last_login_ip) VALUES ($1, crypt($2, gen_salt('bf')), $3, $4) RETURNING (id)"
-    SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password) AND deleted = false"
-    SQL_USER_VERIFY_DSI string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password) AND deleted = false)"
+    //SQL_USER_VERIFY string = "SELECT id FROM users WHERE username = $1 AND password = crypt($2, password) AND deleted = false"
+    SQL_USER_VERIFY_BY_ID string = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND password = crypt($2, password) AND deleted = false)"
+    SQL_USER_VERIFY_BY_FSID string = "SELECT EXISTS(SELECT 1 FROM users WHERE fsid = $1 AND password = crypt($2, password) AND deleted = false)"
     SQL_USER_CHECK_ADMIN string = "SELECT EXISTS(SELECT 1 FROM users WHERE admin = true AND id = $1 AND deleted = false)"
     SQL_USER_UPDATE_LAST_LOGIN_IP string = "UPDATE users SET last_login_ip = $2 WHERE id = $1 AND deleted = false"
+    SQL_USER_GET_BY_ID string = "SELECT id, username, admin, fsid, last_login_time, last_login_ip, expendable_stars, deleted FROM users WHERE id = $1 AND deleted = false"
     SQL_USER_GET_BY_FSID string = "SELECT id, last_login_ip FROM users WHERE fsid = $1 AND deleted = false"
+    SQL_USER_GET_BY_TOKEN string = "SELECT users.id, username, admin, fsid, last_login_time, last_login_ip, expendable_stars, deleted FROM users JOIN apitokens ON users.id = apitokens.userid WHERE apitokens.secret = crypt($1, secret) AND users.deleted = false"
     SQL_USER_RATELIMIT string = "SELECT * FROM get_user_ratelimit($1)"
     SQL_USER_DELETE string = "UPDATE users SET deleted = true WHERE id = $1 and deleted = false"
 
-    SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE expires > now() AND secret = crypt($1, secret))"
+    SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT 1 FROM apitokens WHERE secret = crypt($1, secret))"
     SQL_APITOKEN_REGISTER string = "INSERT INTO apitokens (userid, secret) VALUES ($1, crypt($2, gen_salt('bf')))"
-    SQL_APITOKEN_VERIFY string = "SELECT userid FROM apitokens WHERE expires > now() AND secret = crypt($1, apitokens.secret)"
+    SQL_APITOKEN_GET_USERID string = "SELECT userid FROM apitokens WHERE secret = crypt($1, secret)"
+    SQL_APITOKEN_DESTROY string = "DELETE FROM apitokens WHERE secret = crypt($1, secret)"
+    SQL_APITOKEN_GET_ALT string = "SELECT id, created FROM apitokens WHERE userid = $1 AND secret = "
 )
 
 // All of these functions return an error, which is usually
@@ -290,13 +295,13 @@ func getUserExpendableStars(userid int) (User, error) {
         return User{}, nil
     }
 
-    s := make([]int, 4)
+    s := make([]uint8, 4)
     
     if err := db.QueryRow(SQL_USER_GET_EXPENDABLE_STARS, userid).Scan(&s); err != nil {
         return User{}, err
     }
     
-    return User{ID: userid, ESgreen: s[0], ESred: s[1], ESblue: s[2], ESpurple: s[3]}, nil
+    return User{ID: userid, ESgreen: int(s[0]), ESred: int(s[1]), ESblue: int(s[2]), ESpurple: int(s[3])}, nil
 }
 
 // getUserStars() returns the stars a user has received across all posts ([0]->yellow...)
@@ -432,10 +437,19 @@ func registerUserDsi(username string, password string, fsid string, ip string) (
     return userid, nil
 }
 
-// verifyUserDsi() checks whether a user's password is correct
-func verifyUserDsi(userid int, password string) (bool, error) {
+// verifyUserById() returns true/false if the user's password matches based on id
+func verifyUserById(userid int, password string) (bool, error) {
     var v bool
-    if err := db.QueryRow(SQL_USER_VERIFY_DSI, userid, password).Scan(&v); err != nil {
+    if err := db.QueryRow(SQL_USER_VERIFY_BY_ID, userid, password).Scan(&v); err != nil {
+        return false, err
+    }
+    return v, nil
+}
+
+// verifyUserByFsid() returns true/false if the user's password matches based on fsid (alternative login method)
+func verifyUserByFsid(fsid string, password string) (bool, error) {
+    var v bool
+    if err := db.QueryRow(SQL_USER_VERIFY_BY_FSID, fsid, password).Scan(&v); err != nil {
         return false, err
     }
     return v, nil
@@ -452,6 +466,27 @@ func getUserDsi(fsid string) (int, string, error) {
     }
     
     return userid, last_login_ip, nil
+}
+
+func getUserApiToken(secret string) (User, error) {
+    u := User{}
+    s := make([]uint8, 4)
+
+    if err := db.QueryRow(SQL_USER_GET_BY_TOKEN, secret).Scan(&u.ID, &u.Username, &u.Admin, &u.FSID, &u.LastLoginTime, &u.LastLoginIP, &s, &u.Deleted); err != nil {
+        switch err {
+        case sql.ErrNoRows:
+            return User{ID: 0}, nil
+        default:
+            return User{}, err
+        }
+    }
+    
+    u.ESgreen = int(s[0])
+    u.ESred = int(s[1])
+    u.ESblue = int(s[2])
+    u.ESpurple = int(s[3])
+    
+    return u, nil
 }
 
 // updateUserLastLogin() updates the user's last login IP
@@ -479,16 +514,15 @@ func getUserMovieRatelimit(userid int) (bool, time.Time, error) {
 // API
 //
 
-// registerApiToken() will create a unique token for API access
-// Not implemented yet
-func registerApiToken(userid int) error {
+// generates token for api/account
+func newApiToken(userid int) (string, error) {
     var exists bool
     var secret string
     
     for {
         secret = randAsciiString(72)
         if err := db.QueryRow(SQL_APITOKEN_SECRET_EXISTS, secret).Scan(&exists); err != nil {
-            return err
+            return "", err
         }
         if !exists {
             break
@@ -496,7 +530,28 @@ func registerApiToken(userid int) error {
     }
     
     if _, err := db.Exec(SQL_APITOKEN_REGISTER, userid, secret); err != nil {
-        return err
+        return "", err
     }
+    return secret, nil
+}
+
+func getApiTokenUserId(secret string) (int, error) {
+    var userid int
+
+    if err := db.QueryRow(SQL_APITOKEN_GET_USERID).Scan(&userid); err != nil {
+        switch err {
+        case sql.ErrNoRows:
+            return 0, nil
+        default:
+            return 0, err
+        }
+    }
+    
+    return userid, nil
+}
+
+// stub
+// Invalidate token prematurely
+func destroyApiToken(secret string) error {
     return nil
 }

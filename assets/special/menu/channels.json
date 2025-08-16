@@ -1,0 +1,11 @@
+{
+    "layout": [3, 4],
+
+    "top": {
+        "uppertitle": "channels"
+    },
+
+    "items": [
+        {"type": "button", "url": "http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=1&mode=new&page=1", "label": "rawr"}
+    ]
+}
