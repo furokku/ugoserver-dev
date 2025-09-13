@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="uppertitle" content="Profile">
+        <meta name="uppersubbottom" content="{{.vuser.Username}}">
+        <link rel="stylesheet" type="text/css" href="http://{{.root}}/css/ds/basic.css">
+    </head>
+    <body>
+        <!--<span>viewing profile of {{if .viewingself}}self{{else}}{{.vuser.Username}}{{end}}</span>-->
+        <div class="useroverviewbox">
+            <span>{{.vuser.Username}}</span><br>
+            <span>y: {{index .vuserstars 0}} g: {{index .vuserstars 1}} r: {{index .vuserstars 2}} b: {{index .vuserstars 3}} p: {{index .vuserstars 4}}</span>
+        </div>
+    </body>
+</html>

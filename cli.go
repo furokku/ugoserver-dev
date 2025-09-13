@@ -16,7 +16,7 @@ const (
 //
 // These should all follow the cmdHandlerFunc type (func([]string) string).
 
-func whitelist(args []string) string {
+func (e *env) whitelist(args []string) string {
     
 	if len(args) != 2 {
 		return WHITELIST_USAGE
@@ -29,7 +29,7 @@ func whitelist(args []string) string {
     
     switch args[0] {
     case "add":
-        if err := whitelistAddFsid(fsid); err != nil {
+        if err := whitelistAddFsid(e.pool, fsid); err != nil {
             errorlog.Printf("while adding to whitelist: %v", err)
             return err.Error()
 		}
@@ -37,7 +37,7 @@ func whitelist(args []string) string {
         return fmt.Sprintf("added %s", fsid)
 
     case "del":
-        if err := whitelistDelFsid(fsid); err != nil {
+        if err := whitelistDelFsid(e.pool, fsid); err != nil {
             errorlog.Printf("while removing from whitelist: %v", err)
             return err.Error()
         }
@@ -45,7 +45,7 @@ func whitelist(args []string) string {
         return fmt.Sprintf("removed %s", fsid)
         
     case "query":
-        if w, err := whitelistQueryFsid(fsid); err != nil {
+        if w, err := whitelistQueryFsid(e.pool, fsid); err != nil {
             errorlog.Printf("while querying whitelist: %v", err)
             return err.Error()
         } else {
@@ -58,7 +58,7 @@ func whitelist(args []string) string {
 }
 
 // reload static content (ugomenus, html templates) and config
-func reload(args []string) string {
+func (e *env) reload(args []string) string {
 	
 	if len(args) != 1 {
 		return RELOAD_USAGE
@@ -66,21 +66,21 @@ func reload(args []string) string {
 	
 	switch args[0] {
 	case "menus":
-		if err := load_menus(true); err != nil {
+		if err := e.load_menus(true); err != nil {
             errorlog.Printf("load_menus: %v", err)
             return "internal error; check logs (load_menus)"
         }
 		return "ok"
 
 	case "web":
-		if err := load_html(true); err != nil {
+		if err := e.load_html(true); err != nil {
             errorlog.Printf("load_html: %v", err)
             return "internal error; check logs (load_html)"
         }
 		return "ok"
         
 	case "assets":
-		if err := load_assets(true); err != nil {
+		if err := e.load_assets(true); err != nil {
             errorlog.Printf("load_assets: %v", err)
             return "internal error; check logs (load_assets)"
         }
@@ -96,7 +96,7 @@ func reload(args []string) string {
 // note: IP bans are solely that, per IP. if the public IP of a user changes,
 // they will have unimpaired access to the service
 // TODO -f to issue if already banned
-func ban(args []string) string {
+func (e *env) ban(args []string) string {
 
     if len(args) != 3 {
         return BAN_USAGE
@@ -137,7 +137,7 @@ func ban(args []string) string {
         }
     }
     
-    if err := issueBan("console", t, target, msg, false); err != nil {
+    if err := issueBan(e.pool, "console", t, target, msg, false); err != nil {
         errorlog.Printf("while banning %s: %v", target, err)
         return err.Error()
     }

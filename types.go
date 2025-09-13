@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+	"html/template"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type (
@@ -28,8 +34,22 @@ type (
         done   bool
     }
 
+    dbhandle interface {
+        Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+        QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+        Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+    }
+    
+    env struct {
+        sessions map[string]*Session
+        pool *pgxpool.Pool // use when transactions aren't necessary
+        cnf *Configuration // from config.json containing global options
+        
+        html *template.Template // html templates
+        assets map[string][]byte // 
+        menus map[string]Ugomenu
+    }
 
-    // Must be exported for html templates
 
     // Json config format
     Configuration struct {
@@ -49,6 +69,8 @@ type (
         Hosts     []string `json:"hosts"`
     }
     
+    // None of these need to be exported anymore
+    
     // Session contains all information about a user's session, including data
     // from the initial authentication on /ds/v2-xx/auth
     Session struct {
@@ -57,7 +79,8 @@ type (
         Auth     string // Auth Challenge Response, it can be checked, but i haven't figured it out yet
         Ver      int // ugomemo version 0:rev1(jp release) 2:rev2(jp update 1) and rev3(us/eu release, jp update 2)
         Username string
-        Region   int // 0:jp 1:us 2:eu
+        RegionCode int // 0:jp 1:us 2:eu
+        Region   string // simpler
         Lang     string // system language, as set in settings
         Country  string // system country, as set in settings
         Birthday string // user birthday as 20060102 date
@@ -78,12 +101,9 @@ type (
         FSID string
         Username string
         Admin bool
-        Deleted bool
+        Deleted bool // why is this even here? I can;t bother to remove it
         
-        ESgreen int
-        ESred int
-        ESblue int
-        ESpurple int
+        ExpendableStars []int //1: green, 2: blue, etc
         
         LastLoginIP string
         LastLoginTime time.Time
@@ -98,22 +118,28 @@ type (
     // However, when fetching a singular movie by its ID, all fields are populated
     Movie struct {
         ID int
+        ChannelID int // allow multiple channels?
+
         AuUserID int // author user id
-        AuFSID string // author user fsid
-        AuName string // author user name
+        AuFSID string // author fsid
+        AuName string // author username
         AuFN string // filename when uploaded
+
+        OGAuFSID string
+        OGAuName string
+        OGAuFNFrag string // Fragment of original flipnote (useful?)
+
         Posted time.Time
-        Lock bool // whether movie is locked, in menus this is unused
+        LastMod time.Time // when flipnote was last edited I think
+        Deleted bool
+
+        Lock bool // whether movie is locked, use value of 765 to have flipnote fill it in automatically
         Views int 
         Downloads int
-        Deleted bool
-        ChannelID int
-        Ys int // yellow stars
-        Gs int // green
-        Rs int // red
-        Bs int // blue
-        Ps int // purple
-        Replies int // number of comments
+        Replies int // # of comments
+
+        Stars []int // 0: yellow, 1: green, etc
+        JumpCode string
     }
 
     // Comment contains all information about a reply made to a movie
@@ -181,34 +207,36 @@ type (
     }
     
     // html template data type, only the fields that are needed in a particular template should be set
-    DSPage struct {
-        Session
-        Root string
-        Region string
-        User
-        
-        Movie
-        Comments []Comment
-        Channel
-        
-        SID string
+    // realized this is horrible
+    // use a map with an interface{} value instead
+    // DSPage struct {
+    //     Session
+    //     Root string
+    //     Region string
+    //     User
+    //     
+    //     Movie
+    //     Comments []Comment
+    //     Channel
+    //     
+    //     // redirect after login for better ux
+    //     Redirect string
+    //     // whether the page should display anything extra
+    //     // if you are pushed back to it;
+    //     // example: [..]/ds/v2-eu/sa/register.htm?ret=error
+    //     Return string
+    // }
+    // 
+    // WebPage struct {
+    //     User
+    //     UserPref
+    //     
+    //     Movie
+    //     Movies []Movie
+    //     Comments []Comment
+    //     Channel
+    //     Channels []Channel
 
-        // whether the page should display anything extra
-        // if you are pushed back to it;
-        // example: [..]/ds/v2-eu/sa/register.htm?ret=error
-        Return string
-    }
-    
-    WebPage struct {
-        User
-        UserPref
-        
-        Movie
-        Movies []Movie
-        Comments []Comment
-        Channel
-        Channels []Channel
-
-        Return string
-    }
+    //     Return string
+    // }
 )

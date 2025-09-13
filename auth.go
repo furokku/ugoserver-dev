@@ -10,6 +10,9 @@ import (
 
 	"slices"
 	"strconv"
+	"strings"
+	// debug
+	//"bytes"
 )
 
 const (
@@ -22,37 +25,10 @@ const (
     MSG_ERROR_REF string = "an error occured. try again later\nreference: "
 )
 
-var GAMECODES = []string{"KGUE", "KGUV", "KGUJ"}
-
-// dsi_am middleware checks whether a user is logged in, and optionally redirects them
-// to a log in page if they are not
-func dsi_am(next http.HandlerFunc, check_id bool, redirect bool) http.HandlerFunc {
-    fn := func(w http.ResponseWriter, r *http.Request) {
-        sid := r.Header.Get("X-Dsi-Sid")
-        s := sessions[sid]
-        // Not authenticated thru flipnote
-        if err := isSidValid(sid); err != nil {
-            w.WriteHeader(http.StatusUnauthorized)
-            return
-        }
-        
-        if check_id && !s.IsLoggedIn {
-            if redirect {
-                http.HandlerFunc(sa).ServeHTTP(w, r)
-                return
-            }
-            w.WriteHeader(http.StatusUnauthorized)
-            return
-        }
-
-        next.ServeHTTP(w, r)
-    }
-    
-    return fn
-}
+var GAMECODES = []string{"KGUE", "KGUV", "KGUJ", "NTRJ"} // add tv-jp
 
 // hatenaAuth handler authenticates clients after NAS on /ds/v2-xx/auth
-func hatenaAuth(w http.ResponseWriter, r *http.Request) {
+func (e *env) hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
 
@@ -70,7 +46,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         // something to do with XOR keys
         // is it really needed? probably not
         w.Header()["X-DSi-Auth-Challenge"] = []string{"mangoloco"}
-        w.Header()["X-DSi-SID"] = []string{generateUniqueSession()}
+        w.Header()["X-DSi-SID"] = []string{generateUniqueSession(e.sessions)}
 
     case "POST":
 
@@ -101,7 +77,8 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
             Auth:     r.Header.Get("X-Dsi-Auth-Response"),
             Ver:      ver,
             Username: qd(r.Header.Get("X-Dsi-User-Name")),
-            Region:   region, // unset on rev2
+            RegionCode:   region, // unset on rev2
+            Region: getregion(region),
             Lang:     r.Header.Get("X-Dsi-Lang"), // unset on rev2
             Country:  r.Header.Get("X-Dsi-Country"), // unset on rev2
             Birthday: r.Header.Get("X-Birthday"),
@@ -114,7 +91,7 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
 
         ref := sid[:6] + "_" + req.MAC[6:]
 
-        if r, err := req.validate(); err != nil {
+        if r, err := e.validate(req); err != nil {
             // funkster detected
             infolog.Printf("%v did not pass auth validation (%v), ref %v", ip, err, ref)
             msg := MSG_ERROR_REF + ref
@@ -131,29 +108,37 @@ func hatenaAuth(w http.ResponseWriter, r *http.Request) {
         // figure out if user has registered before,
         // whether logging in from the same ip
         // and obtain a user id
-        id, last_login_ip, err := getUserDsi(req.FSID)
+        u, err := getUserByFsid(e.pool, req.FSID)
         if err != nil {
-            errorlog.Printf("while getting user: %v", err)
-            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-            w.Write(encUTF16LE(MSG_ERROR_REF + ref))
-            return
+            switch err {
+            case ErrNoUser:
+                // ignore
+            default:
+                errorlog.Printf("while getting user: %v", err)
+                w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+                w.Write(encUTF16LE(MSG_ERROR_REF + ref))
+                return
+            }
         }
 
-        req.UserID = id
-        if id == 0 {
+        if u.ID == 0 {
             req.IsUnregistered = true
-        }
-        if ip == last_login_ip {
-            req.IsLoggedIn = true
+        } else {
+            req.UserID = u.ID
+            if ip == u.LastLoginIP {
+                req.IsLoggedIn = true
+            }
         }
         
-        sessions[sid] = req
+        e.sessions[sid] = &req
         //debuglog.Printf("new session %v : %v\n", sid, sessions[sid])
 
         // if nothing else failed, set SID header
         // possible to add X-DSi-New/Unread-Notices here
         // for flashing NEW on inbox button
         w.Header()["X-DSi-SID"] = []string{sid}
+        
+        // todo: mail
     }
 
     w.WriteHeader(http.StatusOK)
@@ -179,7 +164,7 @@ func nosupport(w http.ResponseWriter, r *http.Request) {
 // requests here are logged, but don't provide much useful information other than BSSID, which
 // is used to determine if a client is an emulator. This only works if the emulator's AP BSSID has
 // not been changed, however, which it usually isn't
-func nasAuth(w http.ResponseWriter, r *http.Request) {
+func (e *env) nasAuth(w http.ResponseWriter, r *http.Request) {
 
     ip := r.Header.Get("X-Real-Ip")
 
@@ -235,9 +220,11 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
             // Most users who try to use an emulator won't
             // change the default AP BSSID, which will give awau
             // the fact that they're using one
+            // Worth noting: this is bypassable if using own dns server
+            // with custom NAS
 
             if bssid == MELONDS_BSSID { // 00:F0:77 mac is unassigned. 100% emulator
-                if err := issueBan("auto", time.Now().Add(60 * time.Minute), ip, "emulator usage", true); err == ErrAlreadyBanned {
+                if err := issueBan(e.pool, "auto", time.Now().Add(60 * time.Minute), ip, "emulator usage", true); err == ErrAlreadyBanned {
                     infolog.Printf("%v is already banned", ip)
                 } else if err != nil {
                     errorlog.Printf("failed to issue ban for %v: %v", ip, err)
@@ -259,7 +246,7 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
                 case "acctcreate":
                     resp.Set("retry", nasEncode("0"))
                     resp.Set("returncd", nasEncode("002"))
-                    resp.Set("UserID", nasEncode("notimportant"))
+                    resp.Set("userid", nasEncode(randAsciiString(20)))
 
                 default:
                     debuglog.Printf("nas action %s", action)
@@ -281,55 +268,51 @@ func nasAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 // validate() method will take a session and check if the user is banned or otherwise has any inconsistencies
-func (a Session) validate() (Ban, error) {
+func (e *env) validate(a Session) (*Ban, error) {
 
-    // empty restriction
-    e := Ban{}
-
-
-    if ok, err := whitelistQueryFsid(a.FSID); err != nil {
-        return e, err
+    if ok, err := whitelistQueryFsid(e.pool, a.FSID); err != nil {
+        return nil, err
     } else if ok {
-        return e, nil
+        return nil, nil
     }
 
-    if b, r, err := queryBan(a.FSID); err != nil {
-        return e, err
-    } else if b {
+    if r, err := queryBan(e.pool, a.FSID); err != nil {
+        return nil, err
+    } else if r != nil {
         return r, ErrFsidBan
     }
-    if b, r, err := queryBan(a.IP); err != nil {
-        return e, err
-    } else if b {
+    if r, err := queryBan(e.pool, a.IP); err != nil {
+        return nil, err
+    } else if r != nil {
         return r, ErrIpBan
     }
 
     if a.MAC[5:] != a.FSID[9:] {
-        return e, ErrAuthMacFsidMismatch
+        return nil, ErrAuthMacFsidMismatch
     }
     if a.FSID[9:] == "BF112233" {
-        return e, ErrAuthEmulatorId
+        return nil, ErrAuthEmulatorId
     }
     if a.MAC == "0009BF112233" {
-        return e, ErrAuthEmulatorMac
+        return nil, ErrAuthEmulatorMac
     }
     if a.age() < 13 {
-        return e, ErrAuthUnderage
+        return nil, ErrAuthUnderage
     }
 
-    return e, nil
+    return nil, nil
 }
 
 // isSidValid() checks if a sid is taken
-func isSidValid(sid string) error {
+func isSidValid(sessions map[string]*Session, sid string) bool {
     if _, ok := sessions[sid]; ok {
-        return nil
+        return true
     }
-    return ErrNoSid
+    return false
 }
 
 // genSid() returns a new, unusued session identifier
-func generateUniqueSession() string {
+func generateUniqueSession(sessions map[string]*Session) string {
     var sid string
 
     for {
@@ -342,7 +325,7 @@ func generateUniqueSession() string {
 
 // pruneSids() will run indefinitely and, every 5 minutes, loop through the map of sessions
 // and remove the expired sessions
-func pruneSids() {
+func pruneSids(sessions map[string]*Session) {
     for {
         time.Sleep(5 * time.Minute)
 
@@ -355,40 +338,105 @@ func pruneSids() {
 }
 
 // getregion() returns a two letter region code for urls
-func (s Session) getregion() string {
-    var r string
-    switch s.Region {
+func getregion(r int) string {
+    switch r {
     case 0:
-        r = "jp"
+        return "jp"
     case 1:
-        r = "us"
+        return "us"
     case 2:
-        r = "eu"
+        return "eu"
+    default:
+        return "jp"
     }
-    return r
 }
 
-// sa handler returns a template for web based authentication
-func sa(w http.ResponseWriter, r *http.Request) {
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
-    ret := r.URL.Query().Get("ret")
+// dsi_am middleware checks whether a user is logged in, and optionally redirects them
+// to a log in page if they are not;
+// note that the redirect functionality only works for html
+func (e *env) dsi_am(next http.HandlerFunc, check_id bool, redirect bool) http.HandlerFunc {
+    fn := func(w http.ResponseWriter, r *http.Request) {
+        sid := r.Header.Get("X-Dsi-Sid")
+        s := e.sessions[sid]
+        // Not authenticated thru flipnote
+        if !isSidValid(e.sessions, sid) {
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+        
+        if check_id && !s.IsLoggedIn {
+            if redirect {
+                cutpath, _ := strings.CutPrefix(r.URL.Path, fmt.Sprintf("/ds/v2-%s/", s.Region))
+                uq := r.URL.Query()
+                
+                rurl := fmt.Sprintf("%s?%s", cutpath, uq.Encode())
 
-    if err := cache_html.ExecuteTemplate(w, "auth.html", DSPage{
-        Session: s,
-        Root: cnf.Root,
-        Region: s.getregion(),
-        Return: ret,
-    }); err != nil {
-        errorlog.Printf("while executing template: %v", err)
-        w.WriteHeader(http.StatusInternalServerError)
+                //debuglog.Println(rurl)
+                http.HandlerFunc(e.sa(rurl)).ServeHTTP(w, r)
+                return
+            }
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+
+        next.ServeHTTP(w, r)
+    }
+    
+    return fn
+}
+
+// sa (secondary auth) returns a handler with optional redirect
+// only index 0 from rd will be used
+func (e *env) sa(rd... string) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        ret := r.URL.Query().Get("ret")
+        
+        //buf := new(bytes.Buffer)
+        
+        d, err := e.fillpage(r.Header.Get("X-Dsi-Sid"))
+        if err != nil {
+            errorlog.Printf("while filling page (sa): %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        // it was because i'm dumb as rocks
+        //debuglog.Println(d) // is this nil?
+        d["return"] = ret
+
+        // takes priority
+        if len(rd)>0 {
+
+            // workaround: flipnote studio has a bug where it will parse abc.kbd?foo=bar.htm and read the .htm in the end
+            // and will try to GET it instead of following the .kbd
+            // do something about that here (url encode the redirect path and replace . with -)
+            d["redirect"] = strings.ReplaceAll(url.QueryEscape(rd[0]), ".", "-")
+
+            // also check rd query if login failed to not break the redirect chain
+        } else if rdp := r.URL.Query().Get("rd"); rdp != "" {
+            d["redirect"] = rdp
+        } 
+
+        if err := e.html.ExecuteTemplate(w/*buf*/, "auth.html", d); err != nil {
+            errorlog.Printf("while executing template: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+        }
+        
+        //debuglog.Println(buf.String())
+        //w.Write(buf.Bytes())
+        w.WriteHeader(http.StatusOK)
     }
 }
 
 // sa_login_kbd handler takes the input from a keyboard POST and checks if the password is correct for the user
-func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
+func (e *env) sa_login_kbd(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
-    s := sessions[sid]
-    in := r.Header.Get("X-Email-Addr")
+    s := e.sessions[sid]
+
+    pw := r.Header.Get("X-Email-Addr")
+    
+    u := url.Values{}
+    
+    //debuglog.Println("got to login_kbd")
     
     // sanity check
     if s.IsUnregistered || s.IsLoggedIn {
@@ -396,58 +444,74 @@ func sa_login_kbd(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    if v, err := verifyUserById(s.UserID, in); err != nil {
+    re := false
+    rd, err := url.QueryUnescape(r.URL.Query().Get("rd"))
+    if err == nil && rd != "" {
+        re = true
+        u.Add("rd", rd)
+    }
+    
+    if v, err := verifyUserById(e.pool, s.UserID, pw, s.IP); err != nil {
         // handle error
         errorlog.Printf("while verifying user %d, %v", s.UserID, err)
-        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=error")}
-        return
+        u.Add("ret", "error")
     } else if !v {
-        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=invalid")}
-        return
+        u.Add("ret", "invalid")
+    } else {
+        s.IsLoggedIn = true
+        u.Add("ret", "success")
     }
 
-    if err := updateUserLastLogin(s.UserID, s.IP); err != nil {
-        errorlog.Printf("while updating last login ip: %v", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+    if re && s.IsLoggedIn {
+        w.Header()["X-DSi-Forwarder"] = []string{ub(e.cnf.Root, s.Region, strings.ReplaceAll(rd, "-", "."))}
+    } else {
+        w.Header()["X-DSi-Forwarder"] = []string{fmt.Sprintf("%s?%s", ub(e.cnf.Root, s.Region, "sa/auth.htm"), u.Encode())}
     }
-
-    s.IsLoggedIn = true
-    sessions[sid] = s
-
-    w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
     w.WriteHeader(http.StatusOK)
 }
 
 // sa_reg_kbd handler takes the input from a keyboard POST and registers the user
-func sa_reg_kbd(w http.ResponseWriter, r *http.Request) {
+func (e *env) sa_reg_kbd(w http.ResponseWriter, r *http.Request) {
     sid := r.Header.Get("X-Dsi-Sid")
-    s := sessions[sid]
-    in := r.Header.Get("X-Email-Addr")
+    s := e.sessions[sid]
+
+    pw := r.Header.Get("X-Email-Addr")
+    
+    u := url.Values{}
 
     if !s.IsUnregistered { // user must be unregistered
         w.WriteHeader(http.StatusBadRequest)
         return
     }
+
+    re := false
+    rd, err := url.QueryUnescape(r.URL.Query().Get("rd"))
+    if err == nil && rd != "" {
+        re = true
+        u.Add("rd", rd)
+    }
     
-    id, err := registerUserDsi(s.Username, in, s.FSID, s.IP)
+    id, err := registerUserDsi(e.pool, s.Username, pw, s.FSID, s.IP)
     if err != nil {
-        debuglog.Printf("while registering user: %v", err)
-        w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=error")}
-        return
+        errorlog.Printf("while registering user: %v", err)
+        u.Add("ret", "error")
+    } else {
+        s.UserID = id
+        s.IsUnregistered = false
+        s.IsLoggedIn = true
+
+        u.Add("ret", "success")
     }
 
-    s.UserID = id
-    s.IsUnregistered = false
-    s.IsLoggedIn = true
-
-    sessions[sid] = s
-
-    w.Header()["X-DSi-Forwarder"] = []string{s.ub("sa/auth.htm?ret=success")}
+    if re {
+        w.Header()["X-DSi-Forwarder"] = []string{ub(e.cnf.Root, s.Region, strings.ReplaceAll(rd, "-", "."))}
+    } else {
+        w.Header()["X-DSi-Forwarder"] = []string{fmt.Sprintf("%s?%s", ub(e.cnf.Root, s.Region, "sa/auth.htm"), u.Encode())}
+    }
     w.WriteHeader(http.StatusOK)
 }
 
-func api_auth(w http.ResponseWriter, r *http.Request) {
+func (e *env) api_auth(w http.ResponseWriter, r *http.Request) {
     switch r.URL.Path {
     case "/api/auth/login": // todo: fsid login
         body, err := io.ReadAll(r.Body)
@@ -457,11 +521,12 @@ func api_auth(w http.ResponseWriter, r *http.Request) {
             return
         }
         
-        debuglog.Println(string(body))
+        //debuglog.Println(string(body))
 
         lf, err := url.ParseQuery(string(body))
         if err != nil {
             errorlog.Printf("while parsing form body from auth/login: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
             w.Write([]byte("sorry, an unexpected error occurred"))
             return
         }
@@ -478,7 +543,8 @@ func api_auth(w http.ResponseWriter, r *http.Request) {
             return
         }
         
-        success, err := verifyUserById(id, lf.Get("pw"))
+        // for now last login is only tracked on the dsi
+        success, err := verifyUserById(e.pool, id, lf.Get("pw"))
         if err != nil {
             errorlog.Printf("while verifying user id: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -488,7 +554,7 @@ func api_auth(w http.ResponseWriter, r *http.Request) {
         
         if success {
             // login cookie
-            secret, err := newApiToken(id)
+            secret, err := newApiToken(e.pool, id)
             if err != nil {
                 errorlog.Printf("while creating new api token for user %d: %v", id, err)
                 w.WriteHeader(http.StatusInternalServerError)

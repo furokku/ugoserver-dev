@@ -11,21 +11,10 @@ import (
 	"strings"
 )
 
-var (
-    cnf = Configuration{}
-    cf = "config.json"
-
-    // not a cache in the true sense but makes a good reference i guess
-    // set it up to periodically refresh maybe?
-	cache_html *template.Template
-    cache_assets = make(map[string][]byte)
-	cache_menus = make(map[string]Ugomenu)
-    
-    dirfs fs.FS
-)
-
 // Load config file
-func load_config(reload bool) error {
+func (e *env) load_config(reload bool) error {
+    cf := "config.json"
+
     if reload {
         infolog.Println("load_config: manual reload requested")
     }
@@ -42,17 +31,15 @@ func load_config(reload bool) error {
         return err
     }
 
-    temp := Configuration{}
-    err = json.Unmarshal(cb, &temp)
+    c := Configuration{}
+    err = json.Unmarshal(cb, &c)
     if err != nil {
         return err
     }
 
-    cnf = temp
+    e.cnf = &c
     infolog.Printf("load_config: loaded %s", cf)
     
-    dirfs = os.DirFS(cnf.Dir)
-
     return nil
 }
 
@@ -62,7 +49,7 @@ func load_config(reload bool) error {
 // > parsing lots of files into one *template.Template produced weird results, so
 // > they are stored in a map
 // (no longer)
-func load_html(reload bool) error {
+func (e *env) load_html(reload bool) error {
     if reload {
         infolog.Println("load_html: manual reload requested")
     }
@@ -92,34 +79,33 @@ func load_html(reload bool) error {
     //}
     
     // html part
-    h, err := template.ParseGlob(fmt.Sprintf("%v/assets/special/html/*.html", cnf.Dir))
+    h, err := template.ParseGlob(fmt.Sprintf("%v/assets/special/html/*.html", e.cnf.Dir))
     if err != nil {
         return err
     }
     
-    cache_html = h
-    infolog.Printf("load_html: loaded %d html templates%v", len(cache_html.Templates()), cache_html.DefinedTemplates())
+    e.html = h
+    infolog.Printf("load_html: loaded %d html templates%v", len(e.html.Templates()), e.html.DefinedTemplates())
 
     return nil
 }
 
-// stub
-func load_assets(reload bool) error {
+func (e *env) load_assets(reload bool) error {
     if reload {
         infolog.Println("load_assets: manual reload requested")
     }
 
     a := make(map[string][]byte)
-    fs.WalkDir(dirfs, "assets", walktomap(&a))
+    fs.WalkDir(os.DirFS(e.cnf.Dir), "assets", walktomap(&a))
 
-    cache_assets = a
-    infolog.Printf("load_assets: loaded %d other assets", len(cache_assets))
+    e.assets = a
+    infolog.Printf("load_assets: loaded %d other assets", len(e.assets))
     //fmt.Println(cache_assets)
     return nil
 }
 
 // load menus from assets/special/menus/*.json
-func load_menus(reload bool) error {
+func (e *env) load_menus(reload bool) error {
     if reload {
         infolog.Println("load_menus: manual reload requested")
     }
@@ -157,7 +143,7 @@ func load_menus(reload bool) error {
     //}
     
     m := make(map[string]Ugomenu)
-    fs.WalkDir(dirfs, "assets/special/menu", func(path string, d fs.DirEntry, err error) error {
+    fs.WalkDir(os.DirFS(e.cnf.Dir), "assets/special/menu", func(path string, d fs.DirEntry, err error) error {
         if err != nil {
             errorlog.Printf("load_menu: WalkDir passed an error to anon WalkFunc: %v", err)
             return err
@@ -186,14 +172,15 @@ func load_menus(reload bool) error {
         return nil
     })
 
-    cache_menus = m
-    infolog.Printf("load_menu: loaded %d ugomenus", len(cache_menus))
+    e.menus = m
+    infolog.Printf("load_menu: loaded %d ugomenus", len(e.menus))
     
     return nil
 }
 
 
 // Directory tree walking
+// intended for this to be used with various different maps
 func walktomap(m *map[string][]byte) (fs.WalkDirFunc) {
     return func(path string, d fs.DirEntry, err error)(error){
         if err != nil {

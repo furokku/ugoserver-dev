@@ -21,16 +21,18 @@ package main
 // Command search
 // Lots of tlc on the templates for movies, comments, secondary auth
 // Text comments
-// Users have expendable stars W
 // Mail
-// More sorting modes
-// API
+// API (low priority)
 // Web interface W
 // Build channels menu automatically W
-// Creator's room
+// Profile page W
 // Documentation
-// Inform the user when the session expires within flipnote studio
+// Inform the user when the session expires within flipnote studio (low priority)
 // link multiple consoles to one account (multi fsid -> single user id)
+// on handlers that update the db and add to fs, roll db back if something fails
+// Follow/unfollow creators
+// meta: Break up src files so that they aren't giant blobs
+// flipnote upload: verify signature
 //
 // A little monologue for myself here
 // 4th of july, 2025, 1:53am-GMT+3: some of my last lines of code written
@@ -39,12 +41,13 @@ package main
 // why cant we run a fucking bus in america
 
 import (
-	"database/sql"
 	"fmt"
 
 	"net/http"
 
 	"github.com/gorilla/mux"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"context"
 	"os"
@@ -53,33 +56,34 @@ import (
 )
 
 var (
-    db *sql.DB
-	err error
+    //db *pgxpool.Pool
 
-    // only now realized that windows doesnt have a mythical /tmp directory
-    SOCKET_FILE = fmt.Sprint(os.TempDir(), "/ugoserver.sock")
-    sessions = make(map[string]Session)
+    //sessions = make(map[string]Session)
+    // dont export ts globally i guess
 )
 
 func main() {
-    
+
     infolog.Println("starting ugoserver")
     defer infolog.Println("goodbye!")
     
+    // local environment
+    e := &env{sessions: map[string]*Session{}}
+    
     // barzo dzekuje
     // mmmmm boilerplate
-    if err := load_config(false); err != nil {
+    if err := e.load_config(false); err != nil {
         errorlog.Fatalf("failed to load configuration: %v", err)
     }
 
-    if err := load_html(false); err != nil {
+    if err := e.load_html(false); err != nil {
         errorlog.Printf("failed to load html assets: %v", err)
     }
-    if err := load_assets(false); err != nil {
+    if err := e.load_assets(false); err != nil {
         errorlog.Printf("failed to load other assets: %v", err)
     }
 
-    if err := load_menus(false); err != nil {
+    if err := e.load_menus(false); err != nil {
         errorlog.Printf("failed to load menus: %v", err)
     }
 
@@ -88,15 +92,20 @@ func main() {
     signal.Notify(sigs, os.Interrupt)
 
     // connect to db
-    cs := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cnf.DB.Host, cnf.DB.Port, cnf.DB.User, cnf.DB.Pass, cnf.DB.Name)
+    pc, err := pgxpool.ParseConfig(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", e.cnf.DB.Host, e.cnf.DB.Port, e.cnf.DB.User, e.cnf.DB.Pass, e.cnf.DB.Name))
+    if err != nil {
+        errorlog.Fatalf("could not parse db pool config: %v", err)
+    }
     
     // we learning how to golang gng
-    db, err = sql.Open("postgres", cs)
+    pool, err := pgxpool.NewWithConfig(context.Background(), pc)
     if err != nil {
-        errorlog.Fatalf("could not connect to database: %v", err)
+        errorlog.Fatalf("could not create new db pool: %v", err)
     }
-    if err := db.Ping(); err != nil { // Ping the database to ensure it is reachable
-        errorlog.Fatalf("could not reach database: %v", err)
+    e.pool = pool
+    
+    if err := pool.Ping(context.Background()); err != nil {
+        errorlog.Fatalf("could not establish connection to database: %v", err)
     }
 
     infolog.Printf("connected to database")
@@ -104,7 +113,7 @@ func main() {
     // start a thread to remove old, expired sessions
     // the time for a session to expire is 2 hours
     // may change later if needed
-    go pruneSids()
+    go pruneSids(e.sessions)
 
     // hatena auth/general http server
     //
@@ -113,10 +122,10 @@ func main() {
     h := mux.NewRouter() // hatena
 
     // log requests as they come in, eliminates a bunch of redundant code
-    h.Use(logger)
+    h.Use(e.logger)
     
-    h.NotFoundHandler = logger(returncode(http.StatusNotFound))
-    h.MethodNotAllowedHandler = logger(returncode(http.StatusMethodNotAllowed))
+    h.NotFoundHandler = e.logger(returncode(http.StatusNotFound))
+    h.MethodNotAllowedHandler = e.logger(returncode(http.StatusMethodNotAllowed))
 
     // Unsupport
     // Rev1 is fundamentally incompatible with this server, display a message in the eula
@@ -125,81 +134,86 @@ func main() {
     //h.Path("/ds/{reg:v2-(?:us|eu|jp)}/confirm/{txt:(?:delete|download|upload)}.txt").Methods("GET").HandlerFunc(eula) // v2
     h.Path("/ds/v2/auth").HandlerFunc(nosupport)
     h.Path("/ds/auth").HandlerFunc(nosupport)
-    h.Path("/ds/eula.txt").Methods("GET").HandlerFunc(misc)
-    h.Path("/ds/confirm/{u:(?:download|delete|upload)}.txt").Methods("GET").HandlerFunc(misc)
-    h.Path("/ds/notices.lst").Methods("GET").HandlerFunc(misc)
+    h.Path("/ds/eula.txt").Methods("GET").HandlerFunc(e.misc)
+    h.Path("/ds/confirm/{u:(?:download|delete|upload)}.txt").Methods("GET").HandlerFunc(e.misc)
+    h.Path("/ds/notices.lst").Methods("GET").HandlerFunc(e.misc)
 
     // NAS
-    h.Path("/ac").Methods("POST").HandlerFunc(nasAuth)
-    h.Path("/pr").Methods("POST").HandlerFunc(nasAuth)
+    h.Path("/ac").Methods("POST").HandlerFunc(e.nasAuth)
+    h.Path("/pr").Methods("POST").HandlerFunc(e.nasAuth)
 
     // rev3 auth
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/auth").Methods("GET", "POST").HandlerFunc(hatenaAuth)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/auth").Methods("GET", "POST").HandlerFunc(e.hatenaAuth)
+    // tv?
+    h.Path("/ds/{reg:tv-(?:jp)}/index.ugo").Methods("GET").HandlerFunc(e.handle(e.menus["index"]))
 
     // eula
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula).txt}").Methods("GET").HandlerFunc(eula)
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload).txt}").Methods("GET").HandlerFunc(eula)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula).txt}").Methods("GET").HandlerFunc(e.eula)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload).txt}").Methods("GET").HandlerFunc(e.eula)
     h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(eulatsv) // eu
 
     // static ugomenus
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["index"].handle(), false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(dsi_am(channelMainMenu, false, false)) //todo: query db for channels
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["debug"].handle(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["index"]), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.channelMainMenu, false, false)) //todo: query db for channels
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["debug"]), false, false))
 
     // comments
     // note: Due to how the servemux works, this has to be before
     // movieHandler in order to work
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(dsi_am(replyHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.{ext:(?:reply)}").Methods("POST").HandlerFunc(dsi_am(replyPost, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.reply").Methods("POST").HandlerFunc(e.dsi_am(e.replyPost, true, false))
 
     // movies
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/feed.ugo").Methods("GET").HandlerFunc(dsi_am(movieFeed, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channel.ugo").Methods("GET").HandlerFunc(dsi_am(movieChannelFeed, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/feed.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.movieFeed, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channel.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.movieChannelFeed, false, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(dsi_am(moviePost, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(e.dsi_am(e.moviePost, true, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(dsi_am(movieHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:dl)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(dsi_am(movieHandler, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(e.dsi_am(e.movieHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:dl)}").Methods("POST").HandlerFunc(e.dsi_am(e.movieHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(e.dsi_am(e.movieHandler, true, false))
 
     // stars
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star").Methods("POST").HandlerFunc(dsi_am(starMovie, true, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(dsi_am(starMovie, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star").Methods("POST").HandlerFunc(e.dsi_am(e.starMovie, true, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.star/{color:(?:green|red|blue|purple)}").Methods("POST").HandlerFunc(e.dsi_am(e.starMovie, true, false))
 
     // testing
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.htm").Methods("GET").HandlerFunc(dsi_am(debug, false, false))
-    h.Path("/ds/redirect.htm").HandlerFunc(dsi_am(misc, true, true))
-    h.Path("/ds/v2-us/").HandlerFunc(misc)
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.htm").Methods("GET").HandlerFunc(e.dsi_am(e.debug, false, false))
+    h.Path("/ds/v2-us/redirect.htm").HandlerFunc(e.dsi_am(e.misc, true, true))
+    h.Path("/ds/v2-us/").HandlerFunc(e.misc)
 
     // secondary authentication
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)/sa/auth.htm}").Methods("GET").HandlerFunc(dsi_am(sa, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)/sa/register.kbd}").Methods("POST").HandlerFunc(dsi_am(sa_reg_kbd, false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/sa/login.kbd").Methods("POST").HandlerFunc(dsi_am(sa_login_kbd, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)/sa/auth.htm}").Methods("GET").HandlerFunc(e.dsi_am(e.sa(), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)/sa/register.kbd}").Methods("POST").HandlerFunc(e.dsi_am(e.sa_reg_kbd, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/sa/login.kbd").Methods("POST").HandlerFunc(e.dsi_am(e.sa_login_kbd, false, false))
 
     // command search
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/jump").HandlerFunc(dsi_am(jump, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/jump").HandlerFunc(e.dsi_am(jump, false, false))
 
     // static content
-    h.PathPrefix("/images").HandlerFunc(asset) // application/octet-stream
-    h.PathPrefix("/css").HandlerFunc(css) // content-type set
-    h.Path("/robots.txt").HandlerFunc(misc)
+    h.PathPrefix("/images").HandlerFunc(asset(e.assets, e.cnf.Root, "application/octet-stream"))
+    h.PathPrefix("/css").HandlerFunc(asset(e.assets, e.cnf.Root, "text/css"))
+    h.Path("/robots.txt").HandlerFunc(e.misc)
     
     // mail test
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(dsi_am(cache_menus["addresstest"].handle(), false, false))
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail.send").Methods("POST").HandlerFunc(dsi_am(misc, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["addresstest"]), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail.send").Methods("POST").HandlerFunc(e.dsi_am(e.misc, false, false))
+    
+    // profile
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/profile.htm").Methods("GET").HandlerFunc(e.dsi_am(e.profile, true, true))
     
     // website
-    h.Path("/").HandlerFunc(catchall)
-    h.Path("/ui/account.html").HandlerFunc(ui_account)
+    h.Path("/").HandlerFunc(e.ui_front)
+    h.Path("/ui/account.html").HandlerFunc(e.ui_account)
 
-    h.PathPrefix("/api/auth").HandlerFunc(api_auth)
+    h.PathPrefix("/api/auth").HandlerFunc(e.api_auth)
 
-    hatena := &http.Server{Addr: cnf.Listen + ":9000", Handler: h}
+    hatena := &http.Server{Addr: e.cnf.Listen + ":9000", Handler: h}
 
     // start web server
     go func() {
-        infolog.Printf("serving http on %v", cnf.Listen)
+        infolog.Printf("serving http on %v", e.cnf.Listen)
         err := hatena.ListenAndServe()
         if err != http.ErrServerClosed {
             errorlog.Printf("server error: %v", err)
@@ -208,14 +222,14 @@ func main() {
     }()
 
     // start unix socket for ipc
-    // curious how this works on windows
-    os.RemoveAll(SOCKET_FILE)
+    sock := fmt.Sprint(os.TempDir(), "/ugoserver.sock")
+    os.RemoveAll(sock)
 
     // cli commands
     ch := newCmdHandler()
-    ch.register("whitelist", whitelist)
-    ch.register("reload", reload)
-    ch.register("ban", ban)
+    ch.register("whitelist", e.whitelist)
+    ch.register("reload", e.reload)
+    ch.register("ban", e.ban)
     
     // stubs
     ch.register("config", config)
@@ -223,8 +237,8 @@ func main() {
     ch.register("channel", channel)
     ch.register("movie", movie)
 
-    ipc := newIpcListener(SOCKET_FILE, *ch)
-    infolog.Printf("serving unix socket on %v", SOCKET_FILE)
+    ipc := newIpcListener(sock, *ch)
+    infolog.Printf("serving unix socket on %v", sock)
 
     // wait and do a graceful exit on ctrl-c / sigterm
     sig := <- sigs
@@ -241,5 +255,5 @@ func main() {
     }
     
     // close db connection
-    db.Close()
+    pool.Close()
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
@@ -36,7 +37,7 @@ const (
 
 // movieHandler handler is responsible for returning .ppm files, building web pages for viewing
 // a movie's details and comments, and returning a few bytes on .info requests
-func movieHandler(w http.ResponseWriter, r *http.Request) {
+func (e *env) movieHandler(w http.ResponseWriter, r *http.Request) {
 
     vars := mux.Vars(r)
 
@@ -47,13 +48,13 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
     }
     ext := vars["ext"]
     
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    sid := r.Header.Get("X-Dsi-Sid")
 
     switch ext {
     case "dl":
-        err := updateViewDlCount(id, ext)
+        err := updateDlCount(e.pool, id)
         if err != nil {
-            errorlog.Printf("while updating %v count: %v", ext, err)
+            errorlog.Printf("while updating dl count: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -61,7 +62,7 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "delete":
-        err := deleteMovie(id)
+        err := deleteMovie(e.pool, id)
         if err != nil {
             errorlog.Printf("while deleting %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -71,40 +72,48 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "ppm":
-        data, err := os.ReadFile(fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, id))
+        data, err := os.ReadFile(fmt.Sprintf("%s/movies/%d.ppm", e.cnf.StoreDir, id))
         if err != nil {
             w.WriteHeader(http.StatusNotFound)
             return
         }
 
-        err = updateViewDlCount(id, ext)
-        if err != nil {
-            errorlog.Printf("while updating %v count: %v", ext, err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
         w.Write(data)
         //log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
         return
 
     case "htm":
         // make it return a 404 if not found
-        movie, err := getMovieSingle(id)
-        if err == ErrNoMovie {
-            w.WriteHeader(http.StatusNotFound)
-            return
-        } else if err != nil {
-            errorlog.Printf("while getting flipnote %v: %v", id, err)
+        movie, err := getMovieById(e.pool, id)
+        if err != nil {
+            switch err {
+            case ErrNoMovie:
+                w.WriteHeader(http.StatusNotFound)
+                return
+            default:
+                errorlog.Printf("while getting flipnote %v: %v", id, err)
+                w.WriteHeader(http.StatusInternalServerError)
+                return
+            }
+        }
+        
+        d, err := e.fillpage(sid)
+        if err != nil {
+            errorlog.Printf("while filling DSPage: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
+        
+        d["movie"] = movie
+        au, err := getUserById(e.pool, movie.AuUserID)
+        if err != nil {
+            errorlog.Printf("while getting user %d (movie view): %v", movie.AuUserID, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        d["author"] = au
 
-        if err = cache_html.ExecuteTemplate(w, "movie.html", DSPage{
-            Session: s,
-            Root: cnf.Root,
-            Region: s.getregion(),
-            Movie: movie,
-        }); err != nil {
+        if err = e.html.ExecuteTemplate(w, "movie.html", d); err != nil {
             errorlog.Printf("while executing template: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
@@ -120,9 +129,9 @@ func movieHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // moviePost handler posts a movie to a channel
-func moviePost(w http.ResponseWriter, r *http.Request) {
+func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
     
-    chq := r.URL.Query().Get("channel")
+    chq := r.URL.Query().Get("ch")
     ch, err := strconv.Atoi(chq)
     if err != nil {
         w.WriteHeader(http.StatusBadRequest)
@@ -130,15 +139,15 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
     }
 
     // validation is done by middleware
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    s := e.sessions[r.Header.Get("X-Dsi-Sid")]
     
-    if rl, d, err := getUserMovieRatelimit(s.UserID); err != nil {
+    if d, err := getUserMovieRatelimit(e.pool, s.UserID); err != nil {
         errorlog.Printf("while checking user ratelimit: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
-    } else if rl {
+    } else if d != nil {
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-        w.Write(encUTF16LE(fmt.Sprintf(MSG_MOVIE_RATELIMIT, time.Until(d).String() )))
+        w.Write(encUTF16LE(fmt.Sprintf(MSG_MOVIE_RATELIMIT, time.Until(*d).String() )))
         return
     }
 
@@ -148,15 +157,33 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
+    
+    bt, _ := time.Parse(time.DateTime, "2000-01-01 00:00:00")
+    
+    nm := Movie{
+        ChannelID: ch,
 
-    fsid := strings.ToUpper(hex.EncodeToString(reverse(ppm[0x5E : 0x66])))
-    name := string(stripnull(decUTF16LE(ppm[0x40 : 0x56])))
-    l := int(ppm[0x10])
-    fn := strings.ToUpper(hex.EncodeToString(ppm[0x78 : 0x7B])) + "_" +
-        string(ppm[0x7B : 0x88]) + "_" +
-        editCountPad(binary.LittleEndian.Uint16(ppm[0x88 : 0x90]))
-                
-    if !fsid_match.MatchString(fsid) || !fn_match.MatchString(fn) {
+        AuUserID: s.UserID,
+        AuFSID: strings.ToUpper(hex.EncodeToString(reverse(ppm[0x5E : 0x66]))),
+        AuName: string(stripnull(decUTF16LE(ppm[0x40 : 0x56]))),
+        AuFN: strings.ToUpper(hex.EncodeToString(ppm[0x78 : 0x7B])) + "_" + string(ppm[0x7B : 0x88]) + "_" + editCountPad(binary.LittleEndian.Uint16(ppm[0x88 : 0x90])), // long ahh
+        
+        OGAuFSID: strings.ToUpper(hex.EncodeToString(reverse(ppm[0x8A : 0x92]))),
+        OGAuName: string(stripnull(decUTF16LE(ppm[0x14 : 0x2A]))),
+        OGAuFNFrag: strings.ToUpper(hex.EncodeToString(ppm[0x92 : 0x95])) + "_" + strings.ToUpper(hex.EncodeToString(ppm[0x95 : 0x9A])), // not as long ahh
+        
+        LastMod: bt.Add(time.Duration(binary.LittleEndian.Uint32(ppm[0x9A : 0x9E])) * time.Second), // mess
+        
+        Lock: itob(int(ppm[0x10])),
+    }
+
+    if nm.AuFSID != s.FSID {
+        warnlog.Printf("%s (%d) tried to upload flipnote with differing FSID", s.Username, s.UserID)
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE("an error occurred"))
+        return
+    }
+    if !fsid_match.MatchString(nm.AuFSID) || !fn_match.MatchString(nm.AuFN) {
         warnlog.Printf("%s (%d) tried to upload malformed movie", s.Username, s.UserID)
         w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
         w.Write(encUTF16LE("an error occurred"))
@@ -164,25 +191,34 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
     }
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
+    tx, _ := e.pool.Begin(context.Background())
+    defer tx.Commit(context.Background())
 
-    id, err := addMovie(s.UserID, fsid, name, fn, l, ch)
-    if err == ErrMovieExists {
-        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-        w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
-        return
-    } else if err != nil {
-        errorlog.Printf("while adding flipnote: %v", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+    id, err := addMovie(tx, nm)
+    if err != nil {
+        switch err {
+        case ErrMovieExists:
+            w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+            w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
+            return
+        default:
+            errorlog.Printf("while adding flipnote: %v", err)
+            debuglog.Println(nm)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
     }
 
 //  fmt.Println(id)
 
-    fp, err := os.OpenFile(fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(fmt.Sprintf("%s/movies/%d.ppm", e.cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
         // >> store by id to not allow filename clashes
         // this isn't really an issue and i was being dumb because
         // all filenames are unique. But i like this more
+        tx.Rollback(context.Background())
+        infolog.Printf("transaction rollback")
+
         errorlog.Printf("while opening path to ppm: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
@@ -191,19 +227,22 @@ func moviePost(w http.ResponseWriter, r *http.Request) {
     defer fp.Close()
 
     if _, err := fp.Write(ppm); err != nil {
+        tx.Rollback(context.Background())
+        infolog.Printf("transaction rollback")
+
         errorlog.Printf("while writing ppm to file: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
-
-    infolog.Printf("%v (%v) uploaded flipnote %v", s.Username, s.FSID, fn)
+    
+    infolog.Printf("%v (%v) uploaded flipnote %v", s.Username, s.FSID, nm.AuFN)
     w.WriteHeader(http.StatusOK)
 }
 
 // starMovie handler updates star counts for movies
-func starMovie(w http.ResponseWriter, r *http.Request) {
+func (e *env) starMovie(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
+    s := e.sessions[r.Header.Get("X-Dsi-Sid")]
     id, err := strconv.Atoi(vars["movieid"])
     if err != nil {
         w.WriteHeader(http.StatusBadRequest)
@@ -219,7 +258,7 @@ func starMovie(w http.ResponseWriter, r *http.Request) {
         color = "yellow"
     }
     
-    if err := updateMovieStars(s.UserID, id, color, count); err != nil {
+    if err := updateMovieStars(e.pool, s.UserID, id, color, count); err != nil {
         errorlog.Printf("while updating star count for %d (user %d): %v", id, s.UserID, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
@@ -227,14 +266,18 @@ func starMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 // movieFeed handler returns a menu with the movies in the main feed
-func movieFeed(w http.ResponseWriter, r *http.Request) {
+func (e *env) movieFeed(w http.ResponseWriter, r *http.Request) {
 
+    // new ugomenu
     base := newMenu()
     base.setLayout(2)
 
-    mode := r.URL.Query().Get("mode")
-    pq := r.URL.Query().Get("page")
+    // url query
+    sort := r.URL.Query().Get("s")
+    pq := r.URL.Query().Get("p")
 
+    // strings from query to int
+    // check page
     p, err := strconv.Atoi(pq)
     if pq == "" {
         p = 1
@@ -243,7 +286,8 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    flipnotes, total, err := getFrontMovies(mode, p)
+    // get movies
+    flipnotes, total, err := getFrontMovies(e.pool, sort, p)
     if err != nil {
         errorlog.Printf("while getting feed flipnotes: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -251,33 +295,42 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
     }
     pm := countPages(total, 50)
 
-    // TODO: other page modes ie most popular
+    // start adding stuff to the menu
     base.setTopScreenText("Feed", fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "","")
-    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=1", mode), mode, true)
+    //base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=1", mode), mode, true)
+    for _, sn := range []string{"hot", "top", "new"} {
+        if sn == sort {
+            base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=1", sn), sn, true)
+        } else {
+            base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=1", sn), sn, false)
+        }
+    }
 
+    // back button
     if p > 1 {
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=%d", mode, p-1), 100, "Previous")
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=%d", sort, p-1), 100, "Previous")
     }
 
     for _, f := range flipnotes {
 //      lock := btoi(f.lock)
-        t, err := f.tmb()
+        t, err := tmb(e.cnf.Root, f.ID)
         if err != nil {
             errorlog.Printf("nil tmb: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/movie/%d.ppm", f.ID), 3, "", f.Ys, 765, 573, 0)
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/movie/%d.ppm", f.ID), 3, "", f.Stars[0], 765, 573, 0)
 
         base.addEmbed(t)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
+    // forward button
     if pm > p {
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?mode=%s&page=%d", mode, p+1), 100, "Next")
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=%d", sort, p+1), 100, "Next")
     }
 
-    data := base.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion())
+    data := e.pack(*base, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
     w.Write(data)
 }
 
@@ -287,8 +340,9 @@ func movieFeed(w http.ResponseWriter, r *http.Request) {
 // COMMENTS/REPLIES
 //
 
-func replyHandler(w http.ResponseWriter, r *http.Request) {
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
+func (e *env) replyHandler(w http.ResponseWriter, r *http.Request) {
+    sid := r.Header.Get("X-Dsi-Sid")
+    //s := e.sessions[sid]
     vars := mux.Vars(r)
 
     switch vars["ext"] {
@@ -300,7 +354,7 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
         }
         
         // get the file
-        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, id))
+        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id))
         if err != nil {
             errorlog.Printf("while reading reply %d file: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -326,20 +380,29 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
             return
         }
         
-        comments, err := getMovieComments(id, p)
+        movie, err := getMovieById(e.pool, id)
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+        }
+        
+        comments, err := getMovieComments(e.pool, id, p)
         if err != nil {
             errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
         
-        if err = cache_html.ExecuteTemplate(w, "comment.html", DSPage{
-            Session: s,
-            Root: cnf.Root,
-            Region: s.getregion(),
-            Movie: Movie{ID: id},
-            Comments: comments,
-        }); err != nil {
+        d, err := e.fillpage(sid)
+        if err != nil {
+            errorlog.Printf("while filling out DSPage template: %v", err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        d["movie"] = movie
+        d["comments"] = comments
+        
+        if err = e.html.ExecuteTemplate(w, "comment.html", d); err != nil {
             errorlog.Printf("while executing template: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
@@ -348,8 +411,8 @@ func replyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // replyPost handler handles requests for .npf (reply image data) and .reply (commenting on a movie)
-func replyPost(w http.ResponseWriter, r *http.Request) {
-    s := sessions[r.Header.Get("X-Dsi-Sid")]
+func (e *env) replyPost(w http.ResponseWriter, r *http.Request) {
+    s := e.sessions[r.Header.Get("X-Dsi-Sid")]
     v := mux.Vars(r)
 
     movieid, err := strconv.Atoi(v["movieid"])
@@ -394,14 +457,21 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    id, err := addMovieCommentMemo(s.UserID, movieid)
+    // undo if can't write file
+    tx, _ := e.pool.Begin(context.Background())
+    defer tx.Commit(context.Background())
+
+    id, err := addMovieCommentMemo(tx, s.UserID, movieid)
     if err != nil {
         errorlog.Printf("while adding movie reply to database: %v", err)
         return
     }
     
-    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
+        tx.Rollback(context.Background())
+        infolog.Printf("transaction rollback")
+
         errorlog.Printf("while opening path to reply npf: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
@@ -410,6 +480,9 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
     defer fp.Close()
 
     if _, err := fp.Write(npf); err != nil {
+        tx.Rollback(context.Background())
+        infolog.Printf("transaction rollback")
+
         errorlog.Printf("while writing reply npf to file: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
@@ -425,84 +498,101 @@ func replyPost(w http.ResponseWriter, r *http.Request) {
 //
 
 // movieChannelFeed handler is mostly the same as movieFeed, but it queries
-// only a specific channel instead of all of them
-func movieChannelFeed(w http.ResponseWriter, r *http.Request) {
+// only a specific channel instead of all of them --
+// integrated into movieFeed
+func (e *env) movieChannelFeed(w http.ResponseWriter, r *http.Request) {
     
+    s := e.sessions[r.Header.Get("X-Dsi-Sid")]
+
+    // new ugomenu
     base := newMenu()
     base.setLayout(2)
 
-    mode := r.URL.Query().Get("mode")
-    idq := r.URL.Query().Get("id")
-    pq := r.URL.Query().Get("page")
+    // url query
+    sort := r.URL.Query().Get("s")
+    pq := r.URL.Query().Get("p")
+    chq := r.URL.Query().Get("ch")
 
+    // strings from query to int
+    // check page
     p, err := strconv.Atoi(pq)
     if pq == "" {
-        // do NOT print error message if the query is empty
         p = 1
     } else if err != nil {
         w.WriteHeader(http.StatusBadRequest)
         return
     }
-    id, err := strconv.Atoi(idq)
+    // get channel
+    chid, err := strconv.Atoi(chq)
     if err != nil {
         w.WriteHeader(http.StatusBadRequest)
         return
     }
-    
-    ds, dl, err := getChannelInfo(id)
+    chs, chl, err := getChannelInfo(e.pool, chid)
     if err != nil {
-        errorlog.Printf("white getting channel description: %v", err)
+        errorlog.Printf("while getting channel %d info: %v", chid, err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
-    flipnotes, total, err := getChannelMovies(id, mode, p)
+    // get movies
+    flipnotes, total, err := getChannelMovies(e.pool, chid, sort, p)
     if err != nil {
-        errorlog.Printf("while getting feed flipnotes: %v", err)
+        errorlog.Printf("while getting channel flipnotes: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
     pm := countPages(total, 50)
 
-    // meta
-    base.setTopScreenText(ds, fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "", dl)
-    base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=1", id, mode), mode, true)
-    // check is logged in
-    base.addCorner(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/flipnote.post?channel=%d", id), "Post flipnote")
+    // start adding stuff to the menu
+    base.setTopScreenText(chs, fmt.Sprintf("%d flipnotes", total), fmt.Sprintf("Page %d/%d", p, pm), "", chl)
+    if s.IsLoggedIn {
+        base.addCorner(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/flipnote.post?ch=%d", chid), "Post flipnote")
+    }
+    //base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=1", mode), mode, true)
+    for _, sn := range []string{"hot", "top", "new"} {
+        if sn == sort {
+            base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=%s&p=1", chid, sn), sn, true)
+        } else {
+            base.addDropdown(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=%s&p=1", chid, sn), sn, false)
+        }        
+    }
 
+    // back button
     if p > 1 {
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=%d", id, mode, p-1), 100, "Previous")
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=%s&p=%d", chid, sort, p-1), 100, "Previous")
     }
 
     for _, f := range flipnotes {
 //      lock := btoi(f.lock)
-        t, err := f.tmb()
+        t, err := tmb(e.cnf.Root, f.ID)
         if err != nil {
             errorlog.Printf("nil tmb: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/movie/%d.ppm", f.ID), 3, "", f.Ys, 765, 573, 0)
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/movie/%d.ppm", f.ID), 3, "", f.Stars[0], 765, 573, 0)
 
-        base.EmbedBytes = append(base.EmbedBytes, t)
+        base.addEmbed(t)
         //fmt.Printf("debug: length of tmb %v is %v\n", n, len(tempTmb))
     }
 
+    // forward button
     if pm > p {
-        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=%s&page=%d", id, mode, p+1), 100, "Next")
+        base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=%s&p=%d", chid, sort, p+1), 100, "Next")
     }
 
-    data := base.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion())
+    data := e.pack(*base, s.Region)
     w.Write(data)
 }
 
-func channelMainMenu(w http.ResponseWriter, r *http.Request) {
+func (e *env) channelMainMenu(w http.ResponseWriter, r *http.Request) {
 
     menu := newMenu()
     menu.setLayout(3, 4)
     
     // get first 8 channels
-    chs, err := getChannelList(0)
+    chs, err := getChannelList(e.pool, 0)
     if err != nil {
         errorlog.Printf("while getting main channels: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -510,9 +600,9 @@ func channelMainMenu(w http.ResponseWriter, r *http.Request) {
     }
     
     for _, ch := range chs {
-        menu.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?id=%d&mode=new&page=1", ch.ID), 100, ch.Name)
+        menu.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=hot&p=1", ch.ID), 100, ch.Name)
     }
     
-    data := menu.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion())
+    data := e.pack(*menu, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
     w.Write(data)
 }

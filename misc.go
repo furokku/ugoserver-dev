@@ -30,6 +30,12 @@ const (
     ASCII_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 )
 
+type (
+    Number interface {
+        uint8 | uint16 | int8 | int16 | int32
+    }
+)
+
 
 // randBytes() returns n bytes, at random
 func randBytes(n int) []byte {
@@ -163,7 +169,10 @@ func decUTF16LE(data []byte) []byte {
 func countPages(t int, e int) int {
     pages := t / e
     if t % e > 0 {
-        pages += 1
+        return pages+1
+    }
+    if pages == 0 {
+        return 1
     }
 
     return pages
@@ -193,12 +202,15 @@ func reverse[T comparable](a []T) []T {
     return r
 }
 
-// btoi()
 func btoi(b bool) int {
     if b {
         return 1
     }
     return 0
+}
+
+func itob(i int) bool {
+    return i == 1
 }
 
 // age() calculates the age in years of a user from a session
@@ -212,9 +224,9 @@ func (s Session) age() int {
 }
 
 // tmb() returns the first 0x6a0 bytes of a ppm in order to embed it in a menu
-func (f Movie) tmb() ([]byte, error) {
+func tmb(root string, movieid int) ([]byte, error) {
     buf := make([]byte, 0x6A0)
-    path := fmt.Sprintf("%s/movies/%d.ppm", cnf.StoreDir, f.ID)
+    path := fmt.Sprintf("%s/movies/%d.ppm", root, movieid)
 
     file, err := os.Open(path)
     if err != nil {
@@ -230,10 +242,10 @@ func (f Movie) tmb() ([]byte, error) {
     return buf, nil
 }
 
-// ub() (url builder) is a method on session to automatically insert the correct region
+// ub() (url builder) inserts the correct region
 // and make a url from argument
-func (s Session) ub(p string) string {
-    return fmt.Sprintf("http://%s/ds/v2-%s/%s", cnf.Root, s.getregion(), p)
+func ub(root string, reg string, p string) string {
+    return fmt.Sprintf("http://%s/ds/v2-%s/%s", root, reg, p)
 }
 
 // returncode() returns an http handler which only writes one header to all responses
@@ -243,4 +255,78 @@ func returncode(code int) http.HandlerFunc {
     }
 
     return fn
+}
+
+// map with interface{} value better in this case
+func (e *env) fillpage(sid string) (map[string]interface{}, error) {
+    d := make(map[string]interface{})
+    s := e.sessions[sid]
+    
+    u, err := getUserByFsid(e.pool, s.FSID)
+    if err != nil {
+        warnlog.Printf("(user will be uninitialized) while getting user (%s) by fsid: %v", s.FSID, err)
+    }
+
+    d["session"] = s
+    d["user"] = u // shouldn't matter if this is uninitialized, always check session.isloggedin beforehand
+    d["userprefs"] = nil // TODO
+    d["root"] = e.cnf.Root
+    d["region"] = s.Region
+
+    return d, nil
+}
+
+func castintarray[T Number](x []T) []int {
+    y := make([]int, len(x)) // preallocate
+    
+    for i, v := range x {
+        y[i] = int(v)
+    }
+    
+    return y
+}
+
+func runetocodends(a rune) rune {
+    switch a {
+    case 'A': return 0xE000
+    case 'B': return 0xE001
+    case 'X': return 0xE002
+    case 'Y': return 0xE003
+    case 'L': return 0xE004
+    case 'R': return 0xE005
+    case 'N': return 0xE01B
+    case 'S': return 0xE01C
+    case 'W': return 0xE01A
+    case 'E': return 0xE019
+    default: return 0x00 // should never happen
+    }
+}
+
+func jumpasciitonds(in string) string {
+    s := make([]rune, len(in))
+    for i, c := range in {
+        s[i] = runetocodends(c)
+    }
+    return string(s)
+}
+
+// return whatever random file from assets/
+func asset(cache map[string][]byte, root string, ct string) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        var err error
+        rs, _ := strings.CutPrefix(r.URL.Path, "/")
+        // try cache
+        c, ok := cache[rs]
+        if !ok {
+            c, err = os.ReadFile(fmt.Sprintf("%s/assets/%s", root, rs))
+            if err != nil {
+                w.WriteHeader(http.StatusNotFound)
+                return
+            }
+        } else {
+            debuglog.Printf("fetched %s from cache", rs)
+        }
+        w.Header().Add("Content-Type", ct)
+        w.Write(c)
+    }
 }

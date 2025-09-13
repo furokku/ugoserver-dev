@@ -143,15 +143,15 @@ func DecodeNbf(r io.Reader, w, h int) (image.Image, error) {
 	return FromNpf(ntft, w, h)
 }
 
-// ppm: flipnote studio animation format
-// 0x0 - 0x6a0: tmb/thumbnail, contains author information, preview, other data
-// 0x6a0 onwards: animation data, contains frames, sound, 128-byte rsa1024 sha1 signature + 16 bytes 0x00 padding
+// ppm: flipnote studio animation format;
+// 0x0 - 0x6a0: tmb/thumbnail, contains author information, preview, other data;
+// 0x6a0 onwards: animation data, contains frames, sound, 128-byte rsa1024 sha1 signature + 16 bytes 0x00 padding;
 // 256x192, each frame has two toggleable layers with its own pen color
-// (red, blue, or inverse of paper color)
-// the signature is made using the flipnote studio private key
+// (red, blue, or inverse of paper color);
+// the signature is made using the flipnote studio private key;
 // key SHA256 (pem format): 87f45ee349077c27538a3c44f4347f5153e9b1554b29a3b3957f91afdb084d47
 //
-// this decoder returns a list of image.Images with each frame
+// this function returns an array of image.Images with each frame
 func FromPpm(ppm []byte) ([]image.Image, error) {
 	// read header
 	fm := string(ppm[0x0 : 0x4]) // read file magic

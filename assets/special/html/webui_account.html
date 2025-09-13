@@ -8,9 +8,9 @@
     <body>
         <div class="bar">[<a href="/">home</a>] - [account]</div>
         <hr>
-        {{ if eq .User.ID 0 }}
+        {{ if eq .user.ID 0 }}
         <div class="login">
-            {{ if eq .Return "invalidlogin" }}
+            {{ if eq .return "invalidlogin" }}
             <div class="errorbox">invalid user or password</div>
             {{ end }}
             <form action="/api/auth/login" method="post">
@@ -23,7 +23,8 @@
         </div>
         {{else}}
         <div>
-            <span>you are {{.User.ID}}</span>
+            <!-- todo: actually do something with this-->
+            <span>you are {{.user.ID}}</span>
         </div>
         {{end}}
     </body>

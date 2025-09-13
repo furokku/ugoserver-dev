@@ -1,57 +1,272 @@
 <!-- needs a lot of TLC -->
 <html>
-<head>
-<link rel="stylesheet" href="http://{{.Root}}/css/ds/basic.css">
+    <head>
+        <link rel="stylesheet" href="http://{{.root}}/css/ds/basic.css">
 
-<meta name="upperlink" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
-<meta name="savebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
+        <meta name="upperlink" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.ppm">
+        <meta name="savebutton" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.ppm">
 
-{{if .Session.IsLoggedIn}}
-{{if eq .Session.UserID .Movie.AuUserID}}
-<meta name="deletebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.delete">
-{{else}}
-<meta name="starbutton" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star">
-<meta name="starbutton1" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/green,{{.User.ESgreen}}">
-<meta name="starbutton2" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/red,{{.User.ESred}}">
-<meta name="starbutton3" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/blue,{{.User.ESblue}}">
-<meta name="starbutton4" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.star/purple,{{.User.ESpurple}}">
-{{end}}
-{{end}}
+        {{if .session.IsLoggedIn}}
+        {{if eq .session.UserID .movie.AuUserID}}
+        <meta name="deletebutton" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.delete">
+        {{else}}
+        <meta name="starbutton" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.star">
+        <meta name="starbutton1" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.star/green,{{index .user.ExpendableStars 1}}">
+        <meta name="starbutton2" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.star/red,{{index .user.ExpendableStars 2}}">
+        <meta name="starbutton3" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.star/blue,{{index .user.ExpendableStars 3}}">
+        <meta name="starbutton4" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.star/purple,{{index .user.ExpendableStars 4}}">
+        {{end}}
+        {{end}}
 
-<meta name="playcontrolbutton" content="1">
-</head>
+        <meta name="playcontrolbutton" content="1">
+    </head>
 
-<body>
-<span>
-Template test
-</span>
-<br>
-<span class="star0">{{.Movie.Ys}}</span><br>
-<span class="star1">{{.Movie.Gs}}</span><br>
-<span class="star2">{{.Movie.Rs}}</span><br>
-<span class="star3">{{.Movie.Bs}}</span><br>
-<span class="star4">{{.Movie.Ps}}</span><br>
-<br>
-<span>info:</span>
-<table>
-<tr>
-<td>id</td>
-<td>{{.Movie.ID}}</td>
-</tr>
-<tr>
-<td>author</td>
-<td>{{.Movie.AuUserID}}</td>
-</tr>
-<tr>
-<td>downloads</td>
-<td>{{.Movie.Downloads}}</td>
-</tr>
-<tr>
-<td>views</td>
-<td>{{.Movie.Views}}</td>
-</tr>
+    <body>
+        <!-- tab switcher -->
+        <table width="240" border="0" cellspacing="0" cellpadding="0" class="tab">
+            <tr>
+                <td class="border" width="5" align="center">
+                    <div class="border"></div>
+                </td>
+                <td class="border" width="70" align="center">
+                    <div class="border"></div>
+                </td>
+                <td class="border" width="95" align="center">
+                    <div class="border"></div>
+                </td>
+            </tr>
+            <tr>
+                <td class="space"></td>
+                <td class="tabon" align="center">
+                    <div class="on" align="center">Details</div>
+                </td>
+                <td class="taboff" align="center">
+                    <a class="taboff" href="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.htm?mode=comment&p=1">Comments ({{.movie.Replies}})</a>
+                </td>
+            </tr>
+        </table>
+        <!-- -->
+
+        <br>
+        <div class="main">
+            <table width="226" border="0" cellspacing="0" cellpadding="0" class="detail">
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Title</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">wip</div>
+                </td>
+            </tr>
+            <tr></tr>
+
+            <!-- spacer -->
+            <tr><td colspan="2"><div class="hr"></div></td></tr>
+
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Creator</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">
+                        <a href="http://{{.root}}/ds/v2-{{.region}}/profile.htm?view={{.author.ID}}">{{.author.Username}}</a>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" align="right"></td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Stars</div>
+                </th>
+
+                <td width="136">
+                    <div class="item-value" align="right">
+                        {{range $index, $results := .movie.Stars}}
+                        <span class="star{{$index}}c">★</span>
+                        <span class="star{{$index}}">{{.}}</span>
+                        {{if ne $index 4}}
+                        <br>
+                        {{end}}
+                        {{end}}
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <!--<tr>
+                <th width="90">
+                <div class="item-term" align="left">
+                Comments</div>
+                </th>
+                <td width="136">
+                <div class="item-value" align="right">
+                 <a href="http://flipnote.hatena.com/ds/v2-eu/movie/96FAD88031C49DE1/C49DE1_0B0B228C55F77_000.htm?mode=commentshalfsize">
+                1</a>
+                </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                <div class="hr">
+                </div>
+                </td>
+            </tr>-->
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Views</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">{{.movie.Views}}</div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Last Updated</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">wip</div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            {{ if ne .movie.AuFSID .movie.OGAuFSID }}
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Original Creator</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">
+                    <!--<img src="http://flipnote.hatena.com/ds/v2/927666105145CDBE.ntft?size=ss" width="16" height="16">
+                    <a href="http://ugomemo.hatena.ne.jp/ds/v2-eu/927666105145CDBE/profile.htm?t=1&pm=64">Nathan</a>-->
+                        wip
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            {{end}}
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Original Flipnote</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">
+                    <!--<a href="http://flipnote.hatena.com/ds/v2-eu/movie/927666105145CDBE/45CDBE_0A85AC6037C13_005.htm">Friend code exchange</a>-->
+                        wip
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Staff</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">
+                        <!--<a href="http://flipnote.hatena.com/ds/v2-eu/movie/96FAD88031C49DE1/C49DE1_0B0B228C55F77_000.htm?mode=staff">2 People</a>-->
+                        wip
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Channels</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">
+                        <!--<a href="http://flipnote.hatena.com/ds/v2/ch/244144897672547446.uls">J.S.A. Channel</a>
+                        (<a href="http://flipnote.hatena.com/ds/v2-eu/movie/96FAD88031C49DE1/C49DE1_0B0B228C55F77_000.htm?mode=remove_channel&amp;c=244144897672547446">Remove</a>)
+                        <br>
+                        <a href="http://flipnote.hatena.com/ds/v2/ch/244160012799694546.uls">Nathan</a>
+                        (<a href="http://flipnote.hatena.com/ds/v2-eu/movie/96FAD88031C49DE1/C49DE1_0B0B228C55F77_000.htm?mode=remove_channel&amp;c=244160012799694546">Remove</a>)-->
+                        wip
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Command</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">wip</div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="hr"></div>
+                </td>
+            </tr>
+            <tr>
+                <th width="90">
+                    <div class="item-term" align="left">Flipnote ID</div>
+                </th>
+                <td width="136">
+                    <div class="item-value" align="right">{{.movie.ID}}</div>
+                </td>
+            </tr>
 </table>
-<br>
-<a href="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.htm?mode=comment&page=1">Comments ({{ .Movie.Replies }})</a>
-</body>
+        <!--
+            <span class="star0">{{index .movie.Stars 0}}</span><br>
+            <span class="star1">{{index .movie.Stars 1}}</span><br>
+            <span class="star2">{{index .movie.Stars 2}}</span><br>
+            <span class="star3">{{index .movie.Stars 3}}</span><br>
+            <span class="star4">{{index .movie.Stars 4}}</span><br>
+            <br>
+            <span>info:</span>
+            <table>
+                <tr>
+                    <td>id</td>
+                    <td>{{.movie.ID}}</td>
+                </tr>
+                <tr>
+                    <td>author</td>
+                    <td><a href="http://{{.root}}/ds/v2-{{.region}}/profile.htm?view={{.author.ID}}">{{.author.Username}}</a></td>
+                </tr>
+                <tr>
+                    <td>downloads</td>
+                    <td>{{.movie.Downloads}}</td>
+                </tr>
+                <tr>
+                    <td>views</td>
+                    <td>{{.movie.Views}}</td>
+                </tr>
+            </table>
+        -->
+        </div>
+    </body>
 </html>

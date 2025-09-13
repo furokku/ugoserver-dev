@@ -2,48 +2,55 @@
 <html>
     <head>
         <meta name="uppertitle" content="debug haha">
-        <meta rel="stylesheet" type="text/css" href="http://{{.Root}}/css/ds/basic.css">
+        <link rel="stylesheet" type="text/css" href="http://{{.root}}/css/ds/basic.css">
         <meta charset="utf-8">
     </head>
     <body>
-        <span>This is debug page</span>
-        <br>
-        <table>
-            <tr>
-                <td>sid:</td>
-                <td>{{.SID}}</td>
-            </tr>
-            <tr>
-                <td>issued:</td>
-                <td>{{.Session.Issued.String}}</td>
-            </tr>
-            <tr>
-                <td>fsid:</td>
-                <td>{{.Session.FSID}}</td>
-            </tr>
-            <tr>
-                <td>ip:</td>
-                <td>{{.Session.IP}}</td>
-            </tr>
-            <tr>
-                <td>userid:</td>
-                <td>{{.Session.UserID}}</td>
-            </tr>
-            <tr>
-                <td>username:</td>
-                <td>{{.Session.Username}}</td>
-            </tr>
-            <tr>
-                <td>is logged in:</td>
-                <td>{{.Session.IsLoggedIn}}</td>
-            </tr>
-            <tr>
-                <td>is unregistered:</td>
-                <td>{{.Session.IsUnregistered}}</td>
-            </tr>
-        </table>
-        <br><span><a href="http://{{.Root}}/ds/v2-{{.Region}}/sa/auth.htm">authenticate</a></span>
-        <br><span>and a redirection test thingymajig <a href="http://{{.Root}}/ds/redirect.htm">here</a></span>
-        <br><span>Mail test <a href="ugomemo://createmail">here</a></span>
+        <div class="main">
+            <span>This is debug page</span>
+            <br>
+            <p>Session information:</p>
+            <table>
+                <tr>
+                    <td>sid:</td>
+                    <td>{{.sid}}</td>
+                </tr>
+                <tr>
+                    <td>issued:</td>
+                    <td>{{.session.Issued.String}}</td>
+                </tr>
+                <tr>
+                    <td>fsid:</td>
+                    <td>{{.session.FSID}}</td>
+                </tr>
+                <tr>
+                    <td>ip:</td>
+                    <td>{{.session.IP}}</td>
+                </tr>
+                <tr>
+                    <td>userid:</td>
+                    <td>{{.session.UserID}}</td>
+                </tr>
+                <tr>
+                    <td>username:</td>
+                    <td>{{.session.Username}}</td>
+                </tr>
+                <tr>
+                    <td>is logged in:</td>
+                    <td>{{.session.IsLoggedIn}}</td>
+                </tr>
+                <tr>
+                    <td>is unregistered:</td>
+                    <td>{{.session.IsUnregistered}}</td>
+                </tr>
+            </table>
+            <br><span><a href="http://{{.root}}/ds/v2-{{.region}}/sa/auth.htm">authenticate direct link</a></span>
+            <br><span><a href="http://{{.root}}/ds/v2-us/redirect.htm">redirection test</a></span>
+            <br>
+            <br><span>unicode char test {{.jsp}}</span><br>
+            {{ range .sp }}
+            {{.}}
+            {{end}}
+        </div>
     </body>
 </html>

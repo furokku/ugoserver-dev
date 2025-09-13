@@ -88,6 +88,10 @@ func (u *Ugomenu) addButton(url string, icon int, label string, extra ...int) {
     }
 }
 
+func (u *Ugomenu) addMenuItem(m MenuItem) {
+    u.Items = append(u.Items, m)
+}
+
 // addTest() is for testing menu items with types >4
 func (u *Ugomenu) addTest(t int, v ...string) {
     u.Items = append(u.Items, MenuItem{Type:"test", TestType:t, TestValues:v})    
@@ -101,7 +105,7 @@ func (u *Ugomenu) addEmbed(e []byte) {
 // pack() builds the menu, converting the struct into something the DS can parse;
 // "flipnote.hatena.com" and "v2-xx" will be replaced with the Root url and the correct region
 // and labels will be converted automatically
-func (u Ugomenu) pack(r string) []byte {
+func (e *env) pack(u Ugomenu, r string) []byte {
 
     var header, menus, embedded []byte
     sections := 1 // there is at least 1 section
@@ -121,7 +125,7 @@ func (u Ugomenu) pack(r string) []byte {
     }
 
     for _, item := range u.Items {
-        url := strings.Replace(item.URL, "flipnote.hatena.com", cnf.Root, 1)
+        url := strings.Replace(item.URL, "flipnote.hatena.com", e.cnf.Root, 1)
         url = strings.Replace(url, "xx", r, 1)
         switch item.Type {
         case "dropdown":
@@ -168,10 +172,10 @@ func (u Ugomenu) pack(r string) []byte {
 }
 
 // handle() method will return an http.HandlerFunc which responds with a packed menu
-func (u Ugomenu) handle() http.HandlerFunc {
+func (e *env) handle(u Ugomenu) http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
-        w.Write(u.pack(sessions[r.Header.Get("X-Dsi-Sid")].getregion()))
+        w.Write(e.pack(u, e.sessions[r.Header.Get("X-Dsi-Sid")].Region))
     }
 
     return fn

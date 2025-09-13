@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="stylesheet" type="text/css" href="http://{{.Root}}/css/ds/basic.css">
+        <link rel="stylesheet" type="text/css" href="http://{{.root}}/css/ds/basic.css">
         <meta name="uppertitle" content="id">
     </head>
     
     <body>
-        {{if eq .Return "error"}}
-        <div class="errorbox">sorry, an error has occurred</div>
-        {{else if eq .Return "invalid"}}
-        <div class="errorbox">invalid password</div>
-        {{else if eq .Return "success"}}
-        <div class="successbox">you have successfully logged in</div>
-        {{end}}
+        <div class="main">
+            {{if eq .return "error"}}
+            <div class="errorbox">sorry, an error has occurred</div>
+            {{else if eq .return "invalid"}}
+            <div class="errorbox">invalid password</div>
+            {{else if eq .return "success"}}
+            <div class="successbox">you have successfully logged in</div>
+            {{end}}
 
-        <span>welcome</span><br><br>
-        {{if .Session.IsUnregistered}}
-        <span>since you don't have a user account yet, you'll need to register.</span><br><br>
-        <span>click <a href="http://{{.Root}}/ds/v2-{{.Region}}/sa/register.kbd">here</a> and enter up a password to sign up</span><br><br>
-        <span>please note that is insecure! a limitation of flipnote studio is that requests are sent over in unencrypted plain text (they are stored securely, though). do not use your real passwords if you don't want me to see them!</span>
-        {{else if not .Session.IsLoggedIn}}
-        enter your password <a href="http://{{.Root}}/ds/v2-{{.Region}}/sa/login.kbd">here</a>
-        {{else}}
-        you are already logged in. if you were sent here, it's likely a bug
-        {{end}}
+            <span>welcome</span><br><br>
+            {{if .session.IsUnregistered}}
+            <span>since you don't have a user account yet, you'll need to register.</span><br><br>
+            <span>click <a href="http://{{.root}}/ds/v2-{{.region}}/sa/register.kbd{{if ne .redirect ``}}?rd={{.redirect}}{{end}}">here</a> and enter up a password to sign up</span><br><br>
+            <span>please note that is insecure! a limitation of flipnote studio is that requests are sent over in unencrypted plain text (they are stored securely, though). do not use your real passwords if you don't want me to see them!</span>
+            {{else if not .session.IsLoggedIn}}
+            enter your password <a href="http://{{.root}}/ds/v2-{{.region}}/sa/login.kbd{{if ne .redirect ``}}?rd={{.redirect}}{{end}}">here</a>
+            {{else}}
+            you have been logged in! if you were sent here by another page, the redirect has failed. please report this
+            {{end}}
+        </div>
     </body>
 </html>

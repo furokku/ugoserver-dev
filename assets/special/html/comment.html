@@ -1,27 +1,61 @@
 <!-- needs a lot of TLC -->
 <html>
-<head>
-<meta name="upperlink" content="http://{{.Root}}/ds/v2-{{.Region}}/movie/{{.Movie.ID}}.ppm">
-<link rel="stylesheet" href="http://{{.Root}}/css/ds/basic.css">
+    <head>
+        <meta name="upperlink" content="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.ppm">
+        <link rel="stylesheet" href="http://{{.root}}/css/ds/basic.css">
 
-{{if .Session.IsLoggedIn}}
-<meta name="commentherebutton" content="http://{{.Root}}/ds/v2-{{.Region}}/comment/{{.Movie.ID}}.reply">
-{{end}}
-</head>
+        {{if .session.IsLoggedIn}}
+        <meta name="commentherebutton" content="http://{{.root}}/ds/v2-{{.region}}/comment/{{.movie.ID}}.reply">
+        {{end}}
+    </head>
 
-<body>
-<p>
-six sevennnnn
-</p>
-<table>
-{{range .Comments}}
-{{if .IsMemo}}
-<tr>
-<td>{{.UserID}}</td>
-<td><img src="http://{{$.Root}}/ds/v2-{{$.Region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
-</tr>
-{{end}}
-{{end}}
-</table>
-</body>
+    <body>
+        <!-- tab switcher-->
+        <table width="240" border="0" cellspacing="0" cellpadding="0" class="tab">
+            <tr>
+                <td class="border" width="5" align="center">
+                    <div class="border">
+                    </div>
+                </td>
+                <td class="border" width="70" align="center">
+                    <div class="border">
+                    </div>
+                </td>
+                <td class="border" width="95" align="center">
+                    <div class="border">
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td class="space">
+                </td>
+                <td class="taboff" align="center">
+                    <a class="taboff" href="http://{{.root}}/ds/v2-{{.region}}/movie/{{.movie.ID}}.htm">
+                        Description</a>
+                </td>
+                <td class="tabon" align="center">
+                    <div class="on" align="center">
+                    Comments ({{.movie.Replies}})</div>
+                </td>
+            </tr>
+        </table>
+        <!-- -->
+
+        <div class="main">
+            <p>
+                six sevennnnn
+            </p>
+
+            <table>
+                {{range .comments}}
+                {{if .IsMemo}}
+                <tr>
+                    <td>{{.UserID}}</td>
+                    <td><img src="http://{{$.root}}/ds/v2-{{$.region}}/comment/{{.ID}}.npf" width="64" height="48"></td>
+                </tr>
+                {{end}}
+                {{end}}
+            </table>
+        </div>
+    </body>
 </html>

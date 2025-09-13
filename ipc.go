@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"io"
 	"net"
-	"strings"
+	"time"
 )
 
-var ac map[int]*net.Conn = make(map[int]*net.Conn)
+var ac = make(map[int]*net.Conn)
 
 func newIpcListener(sf string, c cmdHandler) *ipcListener {
     s := &ipcListener{
@@ -63,6 +66,7 @@ func (s *ipcListener) serve(c cmdHandler) {
                 s.ipc(id, conn, c)
                 s.wg.Done()
             }()
+            infolog.Printf("ipc: new conn id %d", id)
         }
     }
 }
@@ -83,7 +87,6 @@ func (s *ipcListener) ipc(id int, conn net.Conn, c cmdHandler) {
             return
         }
         req := string(buf[:n])
-        infolog.Printf("ipc: %v ran %v", conn.RemoteAddr().String(), req)
 
         args := strings.Split(req, " ")
         if len(args) == 0 {
@@ -93,9 +96,11 @@ func (s *ipcListener) ipc(id int, conn net.Conn, c cmdHandler) {
             if !ok {
                 resp = "unknown command " + args[0]
             } else {
-                resp = args[0] + ": " + f(args[1:])
+                s := time.Now()
+                resp = fmt.Sprintf("%s: %s (%dms)", args[0], f(args[1:]), time.Since(s).Milliseconds())
             }
         }
+        infolog.Printf("ipc: %d ran %v", id, req)
         io.WriteString(conn, resp)
     }
 }
