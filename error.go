@@ -18,4 +18,5 @@ var (
     ErrNoUser = errors.New("no user exists with this fsid")
     ErrNoMovie = errors.New("movie with such id does not exist")
     ErrMovieExists = errors.New("flipnote already exists on server")
+    ErrNotRsaPubKey = errors.New("type assertion for rsa pubkey failed (this is not an rsa key)")
 )

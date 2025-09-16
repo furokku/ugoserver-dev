@@ -48,10 +48,9 @@ func (e *env) movieHandler(w http.ResponseWriter, r *http.Request) {
     }
     ext := vars["ext"]
     
-    sid := r.Header.Get("X-Dsi-Sid")
-
     switch ext {
     case "dl":
+        // todo: track user's downloads (and maybe views)
         err := updateDlCount(e.pool, id)
         if err != nil {
             errorlog.Printf("while updating dl count: %v", err)
@@ -62,9 +61,20 @@ func (e *env) movieHandler(w http.ResponseWriter, r *http.Request) {
         return
 
     case "delete":
-        err := deleteMovie(e.pool, id)
-        if err != nil {
-            errorlog.Printf("while deleting %v: %v", id, err)
+        tx, _ := e.pool.Begin(context.Background())
+        defer tx.Commit(context.Background())
+
+        if err := deleteMovie(tx, id); err != nil {
+            errorlog.Printf("while deleting %d: %v", id, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        
+        if err := setCodeInvalid(tx, "movie", id); err != nil {
+            tx.Rollback(context.Background())
+            infolog.Printf("transaction rollback")
+
+            errorlog.Printf("while setting jump code to invalid for %d: %v", id, err)
             w.WriteHeader(http.StatusInternalServerError)
             return
         }
@@ -81,43 +91,6 @@ func (e *env) movieHandler(w http.ResponseWriter, r *http.Request) {
         w.Write(data)
         //log.Printf("sent %d bytes to %v", len(data), r.Header.Get("X-Real-Ip"))
         return
-
-    case "htm":
-        // make it return a 404 if not found
-        movie, err := getMovieById(e.pool, id)
-        if err != nil {
-            switch err {
-            case ErrNoMovie:
-                w.WriteHeader(http.StatusNotFound)
-                return
-            default:
-                errorlog.Printf("while getting flipnote %v: %v", id, err)
-                w.WriteHeader(http.StatusInternalServerError)
-                return
-            }
-        }
-        
-        d, err := e.fillpage(sid)
-        if err != nil {
-            errorlog.Printf("while filling DSPage: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        d["movie"] = movie
-        au, err := getUserById(e.pool, movie.AuUserID)
-        if err != nil {
-            errorlog.Printf("while getting user %d (movie view): %v", movie.AuUserID, err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        d["author"] = au
-
-        if err = e.html.ExecuteTemplate(w, "movie.html", d); err != nil {
-            errorlog.Printf("while executing template: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
 
     case "info":
         w.Write([]byte{0x30, 0x0A, 0x30, 0x0A}) // write 0\n0\n because flipnote is weird
@@ -155,6 +128,20 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         errorlog.Printf("while reading ppm from request body: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    // make sure the ppm isn't some bullshit
+    if lp := len(ppm); lp < 0x730 { // 0x730 is an arbitrary number that I chose
+        // but I think it'll work fine at weeding out any bad requests
+        errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lp)
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    if err := verifyrsa(ppm); err != nil {
+        errorlog.Printf("signature failed: %v", err)
+        w.WriteHeader(http.StatusBadRequest)
         return
     }
     
@@ -313,7 +300,7 @@ func (e *env) movieFeed(w http.ResponseWriter, r *http.Request) {
 
     for _, f := range flipnotes {
 //      lock := btoi(f.lock)
-        t, err := tmb(e.cnf.Root, f.ID)
+        t, err := tmb(e.cnf.StoreDir, f.ID)
         if err != nil {
             errorlog.Printf("nil tmb: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -330,7 +317,7 @@ func (e *env) movieFeed(w http.ResponseWriter, r *http.Request) {
         base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/feed.uls?s=%s&p=%d", sort, p+1), 100, "Next")
     }
 
-    data := e.pack(*base, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
+    data := base.pack(e.cnf.Root, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
     w.Write(data)
 }
 
@@ -341,7 +328,6 @@ func (e *env) movieFeed(w http.ResponseWriter, r *http.Request) {
 //
 
 func (e *env) replyHandler(w http.ResponseWriter, r *http.Request) {
-    sid := r.Header.Get("X-Dsi-Sid")
     //s := e.sessions[sid]
     vars := mux.Vars(r)
 
@@ -362,51 +348,6 @@ func (e *env) replyHandler(w http.ResponseWriter, r *http.Request) {
         }
         
         w.Write(npf)
-        
-    case "htm":
-        id, err := strconv.Atoi(vars["movieid"])
-        if err != nil {
-            w.WriteHeader(http.StatusBadRequest)
-            return
-        }
-        pq := r.URL.Query().Get("page")
-        p, err := strconv.Atoi(pq)
-        if pq == "" {
-            // do NOT print error message if the query is empty
-            p = 1
-        } else if err != nil {
-            infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
-            w.WriteHeader(http.StatusBadRequest)
-            return
-        }
-        
-        movie, err := getMovieById(e.pool, id)
-        if err != nil {
-            w.WriteHeader(http.StatusNotFound)
-        }
-        
-        comments, err := getMovieComments(e.pool, id, p)
-        if err != nil {
-            errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        d, err := e.fillpage(sid)
-        if err != nil {
-            errorlog.Printf("while filling out DSPage template: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        d["movie"] = movie
-        d["comments"] = comments
-        
-        if err = e.html.ExecuteTemplate(w, "comment.html", d); err != nil {
-            errorlog.Printf("while executing template: %v", err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
     }
 }
 
@@ -426,6 +367,19 @@ func (e *env) replyPost(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         errorlog.Printf("while reading reply body: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    // make sure the reply isn't some bullshit
+    if lr := len(reply); lr < 0x730 {
+        errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lr)
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    if err := verifyrsa(reply); err != nil {
+        errorlog.Printf("signature failed: %v", err)
+        w.WriteHeader(http.StatusBadRequest)
         return
     }
 
@@ -565,7 +519,7 @@ func (e *env) movieChannelFeed(w http.ResponseWriter, r *http.Request) {
 
     for _, f := range flipnotes {
 //      lock := btoi(f.lock)
-        t, err := tmb(e.cnf.Root, f.ID)
+        t, err := tmb(e.cnf.StoreDir, f.ID)
         if err != nil {
             errorlog.Printf("nil tmb: %v", err)
             w.WriteHeader(http.StatusInternalServerError)
@@ -582,7 +536,7 @@ func (e *env) movieChannelFeed(w http.ResponseWriter, r *http.Request) {
         base.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=%s&p=%d", chid, sort, p+1), 100, "Next")
     }
 
-    data := e.pack(*base, s.Region)
+    data := base.pack(e.cnf.Root, s.Region)
     w.Write(data)
 }
 
@@ -603,6 +557,6 @@ func (e *env) channelMainMenu(w http.ResponseWriter, r *http.Request) {
         menu.addButton(fmt.Sprintf("http://flipnote.hatena.com/ds/v2-xx/channel.uls?ch=%d&s=hot&p=1", ch.ID), 100, ch.Name)
     }
     
-    data := e.pack(*menu, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
+    data := menu.pack(e.cnf.Root, e.sessions[r.Header.Get("X-Dsi-Sid")].Region)
     w.Write(data)
 }

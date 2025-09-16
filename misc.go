@@ -2,7 +2,11 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/x509"
 	"encoding/base64"
 	"net/http"
 
@@ -17,13 +21,15 @@ import (
 )
 
 var (
-    utf16d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-    utf16e = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
-
     fsid_match = regexp.MustCompile("^[0159]{1}[0-9A-F]{15}$")
     ip_match = regexp.MustCompile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\b){4}$")
     fn_match = regexp.MustCompile("^[0-9A-F]{6}_[0-9A-F]{13}_[0-9]{3}$")
     dur_match = regexp.MustCompile("[1-9][0-9]*[dhmw]")
+    jump_match = regexp.MustCompile("^[ABXYNSWELR]+$")
+    
+    // do not change: der format rsa public key generated from
+    // fnkey (private)
+    fnpub = []byte{0x30, 0x81, 0x9F, 0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01, 0x05, 0x00, 0x03, 0x81, 0x8D, 0x00, 0x30, 0x81, 0x89, 0x02, 0x81, 0x81, 0x00, 0xC2, 0x3C, 0xBC, 0x13, 0x2F, 0xAA, 0x12, 0x7E, 0x5B, 0xFE, 0x82, 0x3C, 0xB0, 0x8B, 0xFB, 0x0C, 0xD1, 0x35, 0x01, 0xF7, 0x4C, 0x6A, 0x3A, 0xFB, 0x82, 0xA6, 0x37, 0x6E, 0x11, 0x38, 0xCF, 0xA0, 0xDD, 0x85, 0xC0, 0xC7, 0x9B, 0xC4, 0xD8, 0xDD, 0x28, 0x8A, 0x87, 0x53, 0x20, 0xEE, 0xE0, 0x0B, 0xEB, 0x43, 0xA0, 0x43, 0x25, 0xCE, 0xA0, 0x29, 0x46, 0xD9, 0xD4, 0x4D, 0xBB, 0x04, 0x66, 0x68, 0x08, 0xF1, 0xF8, 0xF7, 0x34, 0x11, 0x6F, 0xEC, 0xC0, 0x33, 0xA3, 0x3D, 0x12, 0x31, 0xF0, 0x43, 0xA0, 0x40, 0x06, 0xBD, 0x2E, 0xD9, 0x37, 0x05, 0xEF, 0x11, 0xA0, 0xDA, 0xE4, 0x3D, 0x30, 0x15, 0xB3, 0xF4, 0x07, 0xDB, 0x55, 0x0F, 0x75, 0x36, 0x37, 0xEB, 0x35, 0x6A, 0x34, 0x7F, 0xB5, 0x0F, 0x99, 0xF7, 0xEF, 0xD5, 0x5B, 0xE2, 0xC6, 0x64, 0xE4, 0xD4, 0x10, 0xAD, 0x6A, 0xF6, 0x71, 0x07, 0x02, 0x03, 0x01, 0x00, 0x01}
 )
 
 const (
@@ -135,6 +141,7 @@ func nasEncode(data any) string {
 func encUTF16LE(data any) []byte {
     var encoded []byte
     var err error
+    utf16e := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
 
     switch data := data.(type) {
     case string:
@@ -155,6 +162,8 @@ func encUTF16LE(data any) []byte {
 // decUTF16LE() converts utf16le bytes to utf8 bytes
 // make sure to strip the output of null bytes if necessary, as some things are padded like that
 func decUTF16LE(data []byte) []byte {
+    utf16d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+
     decoded, err := utf16d.Bytes(data)
     if err != nil {
         warnlog.Printf("error decoding utf16le data %v", err)
@@ -276,6 +285,7 @@ func (e *env) fillpage(sid string) (map[string]interface{}, error) {
     return d, nil
 }
 
+// no longer using since pgx isnt dumb
 func castintarray[T Number](x []T) []int {
     y := make([]int, len(x)) // preallocate
     
@@ -329,4 +339,21 @@ func asset(cache map[string][]byte, root string, ct string) http.HandlerFunc {
         w.Header().Add("Content-Type", ct)
         w.Write(c)
     }
+}
+
+func verifyrsa(ppm []byte) error {
+    pub, err := x509.ParsePKIXPublicKey(fnpub)
+    if err != nil {
+        return err
+    }
+    
+    edge := len(ppm)
+    
+    h := sha1.Sum(ppm[ : edge-0x90])
+    ap, ok := pub.(*rsa.PublicKey)
+    if !ok {
+        return ErrNotRsaPubKey
+    }
+    
+    return rsa.VerifyPKCS1v15(ap, crypto.SHA1, h[:], ppm[edge-0x90 : edge-0x10])
 }

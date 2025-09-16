@@ -14,10 +14,11 @@ const (
 
     SQL_MOVIE_ADD string = "INSERT INTO movies (channelid, author_userid, author_fsid, author_name, author_filename, og_author_fsid, og_author_name, og_author_filename_fragment, lock, last_modified) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING (id)"
     SQL_MOVIE_DELETE string = "UPDATE movies SET deleted = true WHERE id = $1 AND deleted = false"
-    SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT TRUE movies WHERE author_filename = $1 AND deleted = false)"
+    SQL_MOVIE_CHECK_EXISTS_AFN string = "SELECT EXISTS(SELECT TRUE FROM movies WHERE author_filename = $1 AND deleted = false)"
 
     // hard to read but whatev
-    SQL_MOVIE_GET_BY_ID string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1), jump AS (SELECT code FROM jumpcodes WHERE type = 'movie' AND id = $1), uv AS (SELECT movie_add_view($1)) SELECT movie.*, tstars, replies.c, code FROM movie, replies, get_movie_stars($1), jump JOIN uv ON 1 = 1"
+    SQL_MOVIE_GET_BY_ID string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1), jump AS (SELECT code FROM jumpcodes WHERE type = 'movie' AND id = $1) SELECT movie.*, tstars, replies.c, code FROM movie, replies, get_movie_stars($1), jump"
+    SQL_MOVIE_GET_BY_ID_UPDATE_VIEWS string = "WITH movie AS (SELECT * FROM movies WHERE deleted = false AND id = $1), replies AS (SELECT count(1) AS c FROM comments WHERE movieid = $1), jump AS (SELECT code FROM jumpcodes WHERE type = 'movie' AND id = $1), uv AS (SELECT movie_add_view($1)) SELECT movie.*, tstars, replies.c, code FROM movie, replies, get_movie_stars($1), jump JOIN uv ON 1 = 1"
 
     SQL_MOVIE_GET_NEW string = "WITH filtered AS (SELECT id, arrsum(tstars) AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY posted DESC LIMIT 50 OFFSET ($1-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false) SELECT filtered.id, filtered.ts, total.t FROM filtered, total"
     SQL_MOVIE_GET_TOP string = "WITH filtered AS (SELECT id, arrsum(tstars) AS ts FROM movies JOIN get_movie_stars(id) ON TRUE WHERE deleted = false ORDER BY ts DESC LIMIT 50 OFFSET ($1-1)*50), total AS (SELECT count(1) AS t FROM movies WHERE deleted = false) SELECT filtered.id, filtered.ts, total.t FROM filtered, total" // seems fine, might limit timeframe at some point
@@ -69,7 +70,8 @@ const (
     SQL_USER_GET_BY_TOKEN string = "SELECT users.id, username, admin, fsid, last_login_time, last_login_ip, expendable_stars FROM users JOIN apitokens ON users.id = apitokens.userid WHERE apitokens.secret = crypt($1, secret) AND users.deleted = false"
     SQL_USER_RATELIMIT string = "SELECT * FROM get_user_ratelimit($1)"
     
-    SQL_JUMPCODE_GET string = "SELECT type, id FROM jumpcodes WHERE code = $1 AND active = true"
+    SQL_JUMPCODE_GET_RESOURCE string = "SELECT type, id FROM jumpcodes WHERE code = $1 AND active = true"
+    SQL_JUMPCODE_GET_CODE string = "SELECT code FROM jumpcodes WHERE type = $1 AND id = $2"
     SQL_JUMPCODE_SET_INACTIVE string = "UPDATE jumpcodes SET active = false WHERE type = $1 AND id = $2"
 
     SQL_APITOKEN_SECRET_EXISTS string = "SELECT EXISTS(SELECT TRUE FROM apitokens WHERE secret = crypt($1, secret))"
@@ -121,6 +123,23 @@ func getMovieById(db dbhandle, movieid int) (Movie, error) {
     s := make([]int, 5)
 
     if err := db.QueryRow(context.Background(), SQL_MOVIE_GET_BY_ID, movieid).Scan(&m.ID, &m.ChannelID, &m.AuUserID, &m.AuFSID, &m.AuName, &m.AuFN, &m.OGAuFSID, &m.OGAuName, &m.OGAuFNFrag, &m.Views, &m.Downloads, &m.Lock, &m.Deleted, &m.Posted, &m.LastMod, &s, &m.Replies, &m.JumpCode); err != nil {
+        switch err {
+        case pgx.ErrNoRows:
+            return Movie{}, ErrNoMovie
+        default:
+            return Movie{}, err
+        }
+    }
+
+    m.Stars = s
+    return m, nil
+}
+
+func getMovieByIdUpdView(db dbhandle, movieid int) (Movie, error) {
+    var m Movie
+    s := make([]int, 5)
+
+    if err := db.QueryRow(context.Background(), SQL_MOVIE_GET_BY_ID_UPDATE_VIEWS, movieid).Scan(&m.ID, &m.ChannelID, &m.AuUserID, &m.AuFSID, &m.AuName, &m.AuFN, &m.OGAuFSID, &m.OGAuName, &m.OGAuFNFrag, &m.Views, &m.Downloads, &m.Lock, &m.Deleted, &m.Posted, &m.LastMod, &s, &m.Replies, &m.JumpCode); err != nil {
         switch err {
         case pgx.ErrNoRows:
             return Movie{}, ErrNoMovie
@@ -343,6 +362,41 @@ func getUserStars(db dbhandle, userid int) ([]int, error) {
     }
     
     return s, nil
+}
+
+
+//
+// JUMP
+//
+
+// input code -> output type(movie,channel,user) and id of whatever thing
+func getResByCode(db dbhandle, code string) (string, int, error) {
+    var t string
+    var i int
+    if err := db.QueryRow(context.Background(), SQL_JUMPCODE_GET_RESOURCE, code).Scan(&t, &i); err == pgx.ErrNoRows {
+        return "none", 0, nil
+    } else if err != nil {
+        return "", 0, err
+    }
+    
+    return t, i, nil
+}
+
+func getCodeByRes(db dbhandle, t string, id int) (string, error) {
+    var code string
+
+    if err := db.QueryRow(context.Background(), SQL_JUMPCODE_GET_CODE, t, id).Scan(&code); err != nil {
+        return "XXXXXXXXXX", err
+    }
+    return code, nil
+}
+
+// invalidate the code when something is deleted
+func setCodeInvalid(db dbhandle, t string, id int) error {
+    if _, err := db.Exec(context.Background(), SQL_JUMPCODE_SET_INACTIVE, t, id); err != nil {
+        return err
+    }
+    return nil
 }
 
 

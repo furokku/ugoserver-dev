@@ -9,6 +9,6 @@ $TTL	604800
 			2419200		; Expire
 			 604800 )	; Negative Cache TTL
 @	IN	NS	ns.flipnote.hatena.com.
-ns.flipnote.hatena.com.	IN	A	192.168.0.199
+ns.flipnote.hatena.com.	IN	A	a.b.c.d
 
-flipnote.hatena.com.	IN	A	192.168.0.199
+flipnote.hatena.com.	IN	A	a.b.c.d

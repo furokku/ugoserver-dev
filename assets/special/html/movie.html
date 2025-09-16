@@ -47,7 +47,6 @@
         </table>
         <!-- -->
 
-        <br>
         <div class="main">
             <table width="226" border="0" cellspacing="0" cellpadding="0" class="detail">
             <tr>
@@ -123,10 +122,10 @@
             </tr>-->
             <tr>
                 <th width="90">
-                    <div class="item-term" align="left">Views</div>
+                    <div class="item-term" align="left">Downloads</div>
                 </th>
                 <td width="136">
-                    <div class="item-value" align="right">{{.movie.Views}}</div>
+                    <div class="item-value" align="right">{{.movie.Downloads}}</div>
                 </td>
             </tr>
             <tr>
@@ -139,7 +138,7 @@
                     <div class="item-term" align="left">Last Updated</div>
                 </th>
                 <td width="136">
-                    <div class="item-value" align="right">wip</div>
+                    <div class="item-value" align="right">{{.movie.LastMod}}</div>
                 </td>
             </tr>
             <tr>
@@ -156,7 +155,7 @@
                     <div class="item-value" align="right">
                     <!--<img src="http://flipnote.hatena.com/ds/v2/927666105145CDBE.ntft?size=ss" width="16" height="16">
                     <a href="http://ugomemo.hatena.ne.jp/ds/v2-eu/927666105145CDBE/profile.htm?t=1&pm=64">Nathan</a>-->
-                        wip
+                        {{.movie.OGAuName}}
                     </div>
                 </td>
             </tr>
@@ -165,7 +164,6 @@
                     <div class="hr"></div>
                 </td>
             </tr>
-            {{end}}
             <tr>
                 <th width="90">
                     <div class="item-term" align="left">Original Flipnote</div>
@@ -182,6 +180,7 @@
                     <div class="hr"></div>
                 </td>
             </tr>
+            {{end}}
             <tr>
                 <th width="90">
                     <div class="item-term" align="left">Staff</div>
@@ -223,7 +222,7 @@
                     <div class="item-term" align="left">Command</div>
                 </th>
                 <td width="136">
-                    <div class="item-value" align="right">wip</div>
+                    <div class="item-value" align="right">{{.jumpcode}}</div>
                 </td>
             </tr>
             <tr>

@@ -354,6 +354,9 @@ func getregion(r int) string {
 // dsi_am middleware checks whether a user is logged in, and optionally redirects them
 // to a log in page if they are not;
 // note that the redirect functionality only works for html
+//
+// This makes a mess, but if it works dont fix it
+// Deal with it later if it ends up biting me in the ass
 func (e *env) dsi_am(next http.HandlerFunc, check_id bool, redirect bool) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
         sid := r.Header.Get("X-Dsi-Sid")

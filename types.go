@@ -45,6 +45,7 @@ type (
         pool *pgxpool.Pool // use when transactions aren't necessary
         cnf *Configuration // from config.json containing global options
         
+        // add a mutex of sorts so that these arent modified mid-access
         html *template.Template // html templates
         assets map[string][]byte // 
         menus map[string]Ugomenu

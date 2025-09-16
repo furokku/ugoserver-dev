@@ -18,7 +18,6 @@ package main
 // Go project and I have no idea what I'm doing sometimes!
 //
 // TODO:
-// Command search
 // Lots of tlc on the templates for movies, comments, secondary auth
 // Text comments
 // Mail
@@ -28,11 +27,9 @@ package main
 // Profile page W
 // Documentation
 // Inform the user when the session expires within flipnote studio (low priority)
-// link multiple consoles to one account (multi fsid -> single user id)
-// on handlers that update the db and add to fs, roll db back if something fails
+// link multiple consoles to one account (multi fsid -> single user id)?
 // Follow/unfollow creators
-// meta: Break up src files so that they aren't giant blobs
-// flipnote upload: verify signature
+// Improve the way views are added to movies maybe?
 //
 // A little monologue for myself here
 // 4th of july, 2025, 1:53am-GMT+3: some of my last lines of code written
@@ -94,7 +91,7 @@ func main() {
     // connect to db
     pc, err := pgxpool.ParseConfig(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", e.cnf.DB.Host, e.cnf.DB.Port, e.cnf.DB.User, e.cnf.DB.Pass, e.cnf.DB.Name))
     if err != nil {
-        errorlog.Fatalf("could not parse db pool config: %v", err)
+        errorlog.Fatalf("could not parse db config: %v", err)
     }
     
     // we learning how to golang gng
@@ -145,22 +142,24 @@ func main() {
     // rev3 auth
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/auth").Methods("GET", "POST").HandlerFunc(e.hatenaAuth)
     // tv?
-    h.Path("/ds/{reg:tv-(?:jp)}/index.ugo").Methods("GET").HandlerFunc(e.handle(e.menus["index"]))
+    // maybe handle x-dsi-mid authentication
+    h.Path("/ds/{reg:tv-(?:jp)}/index.ugo").Methods("GET").HandlerFunc(e.handleMenu("index"))
 
     // eula
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula).txt}").Methods("GET").HandlerFunc(e.eula)
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload).txt}").Methods("GET").HandlerFunc(e.eula)
-    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(eulatsv) // eu
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/{txt:(?:eula).txt}").Methods("GET").HandlerFunc(e.dsi_am(e.eula, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/{lang:(?:en)}/confirm/{txt:(?:delete|download|upload).txt}").Methods("GET").HandlerFunc(e.dsi_am(e.eula, false, false))
+    h.Path("/ds/v2-eu/eula_list.tsv").Methods("GET").HandlerFunc(e.dsi_am(eulatsv, false, false)) // eu
 
     // static ugomenus
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["index"]), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/index.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handleMenu("index"), false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/channels.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.channelMainMenu, false, false)) //todo: query db for channels
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["debug"]), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/debug.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handleMenu("debug"), false, false))
 
     // comments
     // note: Due to how the servemux works, this has to be before
     // movieHandler in order to work
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:htm)}").Queries("mode", "comment").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.htm").Queries("mode", "comment").Methods("GET").HandlerFunc(e.dsi_am(e.replyui, false, false))
+
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.reply").Methods("POST").HandlerFunc(e.dsi_am(e.replyPost, true, false))
 
@@ -170,7 +169,9 @@ func main() {
 
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/flipnote.post").Methods("POST").HandlerFunc(e.dsi_am(e.moviePost, true, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|htm|info)}").Methods("GET").HandlerFunc(e.dsi_am(e.movieHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.htm").Methods("GET").HandlerFunc(e.dsi_am(e.movieui, false, false))
+
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:ppm|info)}").Methods("GET").HandlerFunc(e.dsi_am(e.movieHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:dl)}").Methods("POST").HandlerFunc(e.dsi_am(e.movieHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.{ext:(?:delete)}").Methods("POST").HandlerFunc(e.dsi_am(e.movieHandler, true, false))
 
@@ -189,7 +190,7 @@ func main() {
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/sa/login.kbd").Methods("POST").HandlerFunc(e.dsi_am(e.sa_login_kbd, false, false))
 
     // command search
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/jump").HandlerFunc(e.dsi_am(jump, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/jump").HandlerFunc(e.dsi_am(e.jump, false, false))
 
     // static content
     h.PathPrefix("/images").HandlerFunc(asset(e.assets, e.cnf.Root, "application/octet-stream"))
@@ -197,7 +198,7 @@ func main() {
     h.Path("/robots.txt").HandlerFunc(e.misc)
     
     // mail test
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handle(e.menus["addresstest"]), false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail/addresses.ugo").Methods("GET").HandlerFunc(e.dsi_am(e.handleMenu("addresstest"), false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/mail.send").Methods("POST").HandlerFunc(e.dsi_am(e.misc, false, false))
     
     // profile

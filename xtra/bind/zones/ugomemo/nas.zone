@@ -9,6 +9,6 @@ $TTL	604800
 			2419200		; Expire
 			 604800 )	; Negative Cache TTL
 	IN	NS	ns.nas.nintendowifi.net.
-ns.nas.nintendowifi.net.	IN	A	192.168.0.199
+ns.nas.nintendowifi.net.	IN	A	a.b.c.d
 
-nas.nintendowifi.net.	IN	A	192.168.0.199
+nas.nintendowifi.net.	IN	A	a.b.c.d

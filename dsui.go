@@ -27,12 +27,147 @@ func eulatsv(w http.ResponseWriter, r *http.Request) {
     w.Write(append(encUTF16LE("English"), []byte{'\t', 'e', 'n'}...))
 }
 
+// movie ui
+func (e *env) movieui(w http.ResponseWriter, r *http.Request) {
+    sid := r.Header.Get("X-Dsi-Sid")
 
-// TODO
-func jump(w http.ResponseWriter, r *http.Request) {
-    w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
-    w.Write(encUTF16LE("bazinga"))
+    id, err := strconv.Atoi(mux.Vars(r)["movieid"])
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+
+    // make it return a 404 if not found
+    movie, err := getMovieByIdUpdView(e.pool, id)
+    if err != nil {
+        switch err {
+        case ErrNoMovie:
+            w.WriteHeader(http.StatusNotFound)
+            return
+        default:
+            errorlog.Printf("while getting flipnote %v: %v", id, err)
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+    }
+    
+    d, err := e.fillpage(sid)
+    if err != nil {
+        errorlog.Printf("while filling DSPage: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    d["movie"] = movie
+
+    au, err := getUserById(e.pool, movie.AuUserID)
+    if err != nil {
+        errorlog.Printf("while getting user %d (movie view): %v", movie.AuUserID, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    d["author"] = au
+    
+    jc, err := getCodeByRes(e.pool, "movie", movie.ID)
+    if err != nil {
+        errorlog.Printf("while getting jump code for movie %d: %v", movie.ID, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    d["jumpcode"] = jumpasciitonds(jc)
+
+    if err = e.html.ExecuteTemplate(w, "movie.html", d); err != nil {
+        errorlog.Printf("while executing template: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
 }
+
+
+func (e *env) jump(w http.ResponseWriter, r *http.Request) {
+    s := e.sessions[r.Header.Get("X-Dsi-Sid")]
+    jc := r.URL.Query().Get("command")
+    if !jump_match.MatchString(jc) {
+        infolog.Printf("%s queried invalid jumpcode", s.Username)
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    t, id, err := getResByCode(e.pool, jc)
+    if err != nil {
+        errorlog.Printf("while getting resource at jumpcode %s: %v", jc, err)
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE(err.Error()))
+        return
+    }
+    
+    var red string
+    switch t {
+    case "movie":
+        red = fmt.Sprintf("movie/%d.htm", id)
+    case "user":
+        red = fmt.Sprintf("profile.htm?view=%d", id)
+    case "channel":
+        red = fmt.Sprintf("channel.uls?ch=%d&s=new&page=1", id)
+    default:
+        w.Header()["X-DSi-Dialog-Type"] = []string{"1"}
+        w.Write(encUTF16LE("no jump 4 u"))
+        return
+    }
+    
+    w.Header()["X-DSi-Dialog-Type"] = []string{"0"}
+    w.Write([]byte(ub(e.cnf.Root, s.Region, red)))
+}
+
+func (e *env) replyui(w http.ResponseWriter, r *http.Request) {
+    sid := r.Header.Get("X-Dsi-Sid")
+    
+    id, err := strconv.Atoi(mux.Vars(r)["movieid"])
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    pq := r.URL.Query().Get("page")
+    p, err := strconv.Atoi(pq)
+    if pq == "" {
+        // do NOT print error message if the query is empty
+        p = 1
+    } else if err != nil {
+        infolog.Printf("%v passed invalid page to %v%v: %v", r.Header.Get("X-Real-Ip"), r.Host, r.URL.Path, err)
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    movie, err := getMovieById(e.pool, id)
+    if err != nil {
+        w.WriteHeader(http.StatusNotFound)
+    }
+    
+    comments, err := getMovieComments(e.pool, id, p)
+    if err != nil {
+        errorlog.Printf("while getting comments for flipnote %v: %v", id, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    d, err := e.fillpage(sid)
+    if err != nil {
+        errorlog.Printf("while filling out DSPage template: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    d["movie"] = movie
+    d["comments"] = comments
+    
+    if err = e.html.ExecuteTemplate(w, "comment.html", d); err != nil {
+        errorlog.Printf("while executing template: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+}
+
+// todo: movie movie htm here
 
 // debug handler just runs a template
 func (e *env) debug(w http.ResponseWriter, r *http.Request) {

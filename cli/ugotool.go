@@ -51,7 +51,7 @@ func main() {
         if len(os.Args) >= 3 {
             console(os.Args[2])
         } else {
-            console("/tmp/ugoserver.sock")
+            console(fmt.Sprint(os.TempDir(), "/ugoserver.sock")) // windows isnt a mythical being that has a /tmp
         }
         
     case "img":
@@ -74,7 +74,7 @@ func main() {
             if err != nil {
                 print_usage()
             }
-            h, err := strconv.Atoi(os.Args[4])
+            h, err := strconv.Atoi(os.Args[4]) // make this optional and try to guess height
             if err != nil {
                 print_usage()
             }

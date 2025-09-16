@@ -105,7 +105,7 @@ func (u *Ugomenu) addEmbed(e []byte) {
 // pack() builds the menu, converting the struct into something the DS can parse;
 // "flipnote.hatena.com" and "v2-xx" will be replaced with the Root url and the correct region
 // and labels will be converted automatically
-func (e *env) pack(u Ugomenu, r string) []byte {
+func (u Ugomenu) pack(root string, r string) []byte {
 
     var header, menus, embedded []byte
     sections := 1 // there is at least 1 section
@@ -125,7 +125,7 @@ func (e *env) pack(u Ugomenu, r string) []byte {
     }
 
     for _, item := range u.Items {
-        url := strings.Replace(item.URL, "flipnote.hatena.com", e.cnf.Root, 1)
+        url := strings.Replace(item.URL, "flipnote.hatena.com", root, 1)
         url = strings.Replace(url, "xx", r, 1)
         switch item.Type {
         case "dropdown":
@@ -172,10 +172,10 @@ func (e *env) pack(u Ugomenu, r string) []byte {
 }
 
 // handle() method will return an http.HandlerFunc which responds with a packed menu
-func (e *env) handle(u Ugomenu) http.HandlerFunc {
+func (e *env) handleMenu(name string) http.HandlerFunc {
 
     fn := func(w http.ResponseWriter, r *http.Request) {
-        w.Write(e.pack(u, e.sessions[r.Header.Get("X-Dsi-Sid")].Region))
+        w.Write(e.menus[name].pack(e.cnf.Root, e.sessions[r.Header.Get("X-Dsi-Sid")].Region))
     }
 
     return fn
