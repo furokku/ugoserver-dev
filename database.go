@@ -448,7 +448,7 @@ func checkIsBanned(db dbhandle, affected string) (bool, error) {
 // returns bool whether banned and ban info
 func queryBan(db dbhandle, affected string) (*Ban, error) {
     b := Ban{}
-    err := db.QueryRow(context.Background(), SQL_USER_BAN_QUERY, affected).Scan(&b.ID, &b.Issuer, &b.Issued, &b.Expires, &b.Message, &b.Pardon, &b.Affected)
+    err := db.QueryRow(context.Background(), SQL_USER_BAN_QUERY, affected).Scan(&b.ID, &b.Issuer, &b.Message, &b.Issued, &b.Expires, &b.Pardon, &b.Affected)
     if err != nil {
         switch err {
         case pgx.ErrNoRows:

@@ -8,6 +8,8 @@ package main
 // each one will have their own made up sid/fsid/etc
 // worker fsids should start with a specific value so they can easily
 // be identified (i.e. 5000BEEFXXXXXXXX)
+// TODO: make this get first X rows from database and keep that in memory
+// to have an index of what to fetch using the fake DSis
 //
 // allow workers to use a pool of ips?
 // unix socket for response verification w/sha256?
