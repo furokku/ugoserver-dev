@@ -195,17 +195,18 @@ DECLARE
     cl INT = 10;
     tn TEXT = TG_TABLE_NAME::regclass::TEXT;
 BEGIN
-    IF tn = 'users' THEN
-        cl := 7;
-    ELSE IF tn = 'channels' THEN
-        cl := 5;
-    END IF;
+--    IF tn = 'users' THEN
+--        cl = 7;
+--    ELSE IF tn = 'channels' THEN
+--        cl = 5;
+--    END IF;
     WHILE j_invalid LOOP
         BEGIN
-            INSERT INTO jumpcodes(code, type, id) VALUES (random_jumpcode(cl), cast(trim(trailing 's' from tn) AS jump_resource), NEW.id);
-            j_invalid := false;
-        EXCEPTION WHEN unique_violation THEN
-            -- try again
+            INSERT INTO jumpcodes(code, type, id) VALUES (random_jumpcode(cl), trim(trailing 's' from tn)::jump_resource, NEW.id);
+            j_invalid = false;
+        EXCEPTION
+            WHEN unique_violation THEN
+                -- try again
         END;
     END LOOP;
     RETURN NULL;
