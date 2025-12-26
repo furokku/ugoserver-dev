@@ -57,13 +57,13 @@ func FromNpf(npf []byte, w, h int) (image.Image, error) {
 	}
 	
 	// palette and image data length
-	pl := int(binary.LittleEndian.Uint32(npf[8:12]))// # of colors
+	pl := int(binary.LittleEndian.Uint32(npf[8:12]))// length of palette section (including first color)
 	//il := int(binary.LittleEndian.Uint32(npf[12:16]))
 	
 	colors := [16]color.NRGBA{}
 	colors[0] = color.NRGBA{R: 0, G: 0, B: 0, A:0} // this is always reserved for transparency
-	pn := pl/2-1
-	for i:=1; i<=pn; i++ {
+	pn := pl/2 // # of colors
+	for i:=1; i<pn; i++ { // by setting i:=1 skip first palette slot
 		n := 0x10 + i*2
 		c := binary.LittleEndian.Uint16(npf[n:n+2])
 		colors[i] = unpackabgr(c, false)
@@ -71,8 +71,8 @@ func FromNpf(npf []byte, w, h int) (image.Image, error) {
 	
 	for y:=0; y<h; y++ {
 		for x:=0; x<w; x+=2 {
-			n := 0x10+pl + y*wr + x/2
-			d := npf[n]
+			n := 0x10+pl + y*wr + x/2 // byte index
+			d := npf[n] // byte data
 			//fmt.Printf("X=%d Y=%d n=%d RAW=%x\n", x, y, n, d)
 			im.SetNRGBA(x, y, colors[d&0xf])
 			im.SetNRGBA(x+1, y, colors[d>>4])
@@ -108,14 +108,14 @@ func FromNbf(nbf []byte, w, h int) (image.Image, error) {
 	}
 	
 	// palette and image data length
-	pl := int(binary.LittleEndian.Uint32(nbf[8:12]))// # of colors
+	pl := int(binary.LittleEndian.Uint32(nbf[8:12]))// length of the palette section
 	//il := int(binary.LittleEndian.Uint32(npf[12:16]))
 	
 	colors := [256]color.NRGBA{}
 	// Not on nbf it isn't
 	//colors[0] = color.NRGBA{R: 0, G: 0, B: 0, A:0} // this is always reserved for transparency
-	pn := pl/2
-	for i:=0; i<=pn; i++ {
+	pn := pl/2 // # of colors
+	for i:=0; i<pn; i++ {
 		n := 0x10 + i*2
 		c := binary.LittleEndian.Uint16(nbf[n:n+2])
 		colors[i] = unpackabgr(c, false)
@@ -140,7 +140,7 @@ func DecodeNbf(r io.Reader, w, h int) (image.Image, error) {
 		return nil, err
 	}
 	
-	return FromNpf(ntft, w, h)
+	return FromNbf(ntft, w, h)
 }
 
 // ppm: flipnote studio animation format;
@@ -149,7 +149,7 @@ func DecodeNbf(r io.Reader, w, h int) (image.Image, error) {
 // 256x192, each frame has two toggleable layers with its own pen color
 // (red, blue, or inverse of paper color);
 // the signature is made using the flipnote studio private key;
-// key SHA256 (pem format): 87f45ee349077c27538a3c44f4347f5153e9b1554b29a3b3957f91afdb084d47
+// private key SHA256 (pem format): 87f45ee349077c27538a3c44f4347f5153e9b1554b29a3b3957f91afdb084d47
 //
 // this function returns an array of image.Images with each frame
 func FromPpm(ppm []byte) ([]image.Image, error) {

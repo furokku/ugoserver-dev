@@ -5,6 +5,7 @@ Ugoserver is a replacement server for Flipnote Studio's online functionality, Fl
 <br>Issues and pull requests are welcome
 <br>
 <br>As part of development, I've written a library to convert to/from the image formats that Flipnote Studio uses. Namely npf, nbf, ntft and ppm. This is `nx` package
+<br>doc.md in this repository will be an all inclusive guide to how flipnote hatena works.... eventually
 
 ## quick setup
 A few things need to be done prior to starting the server, namely
@@ -18,7 +19,7 @@ A few things need to be done prior to starting the server, namely
 * start the server. It will attempt to read the configuration file as the first argument passed (others ignored), and will default to config.json in the current working directory if unspecified
 <br>
 <br>you should be able to set the dns and connect after doing all of this.
-<br>Templates will be read from dir/static/template/\*.html, predefined menus from dir/static/menu/\*.json, text content from dir/static/txt (dir is set in the config file)
+<br>Templates will be read from $dir/assets/special/html/*.html, predefined menus from $dir/assets/special/menu/*.json, text content from $dir/assets/text (dir is set in the config file)
 <br>
 <br>2xxxx, 33xxx codes mean something is up, possibly with dns/nas
 <br>304xxx means something is up with the html/menu bits of online mode
@@ -32,13 +33,13 @@ I have quite a few things planned for this server, so maybe there will be more c
 
 ## support development $$
 This is all a big hobby project. It's MIT licensed. If you want to run your paid server or whatever, feel free to do so. I do not care
-<br>~~However, if you'd like to see more of this server, you can support me by donating via [paypal](https://www.paypal.com/donate/?hosted_button_id=YFLWW24WGMGS8)~~
-<br> ~~65.40 ukrainian hryvnia buys me a monster energy drink, that's about $1.70, this is my lifeblood~~
-<br>link is broken
+<br>but if you'd like to see more of this, you can support me by donating via [paypal](https://www.paypal.com/donate/?hosted_button_id=XQEB8PFHYG82J)
+<br>i survive off monsters, so $3 is plenty
 
 ## Credits & Thanks
 Original [hatena-server](https://github.com/pbsds/hatena-server), some code was helpful in understanding how Flipnote works - pbsds
 <br>flipnote hatena assets (thanks a bunch) - pbsds
 <br>[nds-constrain't](https://github.com/KaeruTeam/nds-constraint) - Project Kaeru
 <br>Very good format documentation [here](https://github.com/Flipnote-Collective/flipnote-studio-docs/wiki) and [here](https://github.com/pbsds/hatena-server/wiki)
+<br>[Sudofont](https://github.com/sudomemo/Sudofont) - nds unicode character map
 <br>and likely others...

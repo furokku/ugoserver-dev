@@ -44,8 +44,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"context"
 	"os"
 	"os/signal"
@@ -63,54 +61,57 @@ func main() {
 
     infolog.Println("starting ugoserver")
     defer infolog.Println("goodbye!")
-    
+    //
     // local environment
-    e := &env{sessions: map[string]*Session{}}
-    
-    // barzo dzekuje
-    // mmmmm boilerplate
-    if err := e.load_config(false); err != nil {
-        errorlog.Fatalf("failed to load configuration: %v", err)
+    e, err := initenv()
+    if err != nil {
+        errorlog.Fatalf("failed to initialize: %v", err)
     }
+    //
+    //// barzo dzekuje
+    //// mmmmm boilerplate
+    //if err := e.load_config(false); err != nil {
+    //    errorlog.Fatalf("failed to load configuration: %v", err)
+    //}
 
-    if err := e.load_html(false); err != nil {
-        errorlog.Printf("failed to load html assets: %v", err)
-    }
-    if err := e.load_assets(false); err != nil {
-        errorlog.Printf("failed to load other assets: %v", err)
-    }
+    //if err := e.load_html(false); err != nil {
+    //    errorlog.Printf("failed to load html assets: %v", err)
+    //}
+    //if err := e.load_assets(false); err != nil {
+    //    errorlog.Printf("failed to load other assets: %v", err)
+    //}
 
-    if err := e.load_menus(false); err != nil {
-        errorlog.Printf("failed to load menus: %v", err)
-    }
+    //if err := e.load_menus(false); err != nil {
+    //    errorlog.Printf("failed to load menus: %v", err)
+    //}
 
-    // listen for ^C
+    //// listen for ^C
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, os.Interrupt)
 
-    // connect to db
-    pc, err := pgxpool.ParseConfig(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", e.cnf.DB.Host, e.cnf.DB.Port, e.cnf.DB.User, e.cnf.DB.Pass, e.cnf.DB.Name))
-    if err != nil {
-        errorlog.Fatalf("could not parse db config: %v", err)
-    }
-    
-    // we learning how to golang gng
-    pool, err := pgxpool.NewWithConfig(context.Background(), pc)
-    if err != nil {
-        errorlog.Fatalf("could not create new db pool: %v", err)
-    }
-    e.pool = pool
-    
-    if err := pool.Ping(context.Background()); err != nil {
-        errorlog.Fatalf("could not establish connection to database: %v", err)
-    }
+    //// connect to db
+    //pc, err := pgxpool.ParseConfig(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", e.cnf.DB.Host, e.cnf.DB.Port, e.cnf.DB.User, e.cnf.DB.Pass, e.cnf.DB.Name))
+    //if err != nil {
+    //    errorlog.Fatalf("could not parse db config: %v", err)
+    //}
+    //
+    //// we learning how to golang gng
+    //pool, err := pgxpool.NewWithConfig(context.Background(), pc)
+    //if err != nil {
+    //    errorlog.Fatalf("could not create new db pool: %v", err)
+    //}
+    //e.pool = pool
+    //
+    //if err := pool.Ping(context.Background()); err != nil {
+    //    errorlog.Fatalf("could not establish connection to database: %v", err)
+    //}
 
-    infolog.Printf("connected to database")
+    //infolog.Printf("connected to database")
 
     // start a thread to remove old, expired sessions
     // the time for a session to expire is 2 hours
     // may change later if needed
-    go pruneSids(e.sessions)
+    //go pruneSids(e.sessions)
 
     // hatena auth/general http server
     //
@@ -160,7 +161,7 @@ func main() {
     // movieHandler in order to work
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/movie/{movieid}.htm").Queries("mode", "comment").Methods("GET").HandlerFunc(e.dsi_am(e.replyui, false, false))
 
-    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.{ext:(?:npf)}").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
+    h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{commentid}.npf").Methods("GET").HandlerFunc(e.dsi_am(e.replyHandler, false, false))
     h.Path("/ds/{reg:v2-(?:us|eu|jp)}/comment/{movieid}.reply").Methods("POST").HandlerFunc(e.dsi_am(e.replyPost, true, false))
 
     // movies
@@ -256,5 +257,5 @@ func main() {
     }
     
     // close db connection
-    pool.Close()
+    //pool.Close()
 }

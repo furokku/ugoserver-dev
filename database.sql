@@ -95,9 +95,10 @@ CREATE TABLE jumpcodes(
 );
 
 -- add stars to a movie and remove them from the user
-CREATE FUNCTION update_movie_stars(userid INT, movieid INT, color INT, count INT) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION update_movie_stars(userid INT, movieid INT, color INT, count INT) RETURNS void AS $$
 DECLARE
     available INT;
+    mauid INT;
 BEGIN
     -- IF NOT EXISTS(SELECT 1 FROM user_star WHERE user_star.userid = update_movie_stars.userid AND user_star.movieid = update_movie_stars.movieid) THEN
     --     INSERT INTO user_star (userid, movieid) VALUES (userid, movieid);
@@ -105,6 +106,12 @@ BEGIN
 
     IF color > 5 OR color < 1 THEN
         RAISE EXCEPTION 'invalid color';
+    END IF;
+    
+    -- check if the user giving the stars isnt the author
+    SELECT author_userid INTO mauid FROM movies WHERE id = update_movie_stars.userid;
+    IF mauid = userid THEN
+        RAISE EXCEPTION 'author cannot star own movie (big ego ahh)';
     END IF;
     
     -- get how many stars the user has
@@ -175,19 +182,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION random_jumpcode(OUT nc TEXT) AS $$
+-- input jc length for different resources
+CREATE FUNCTION random_jumpcode(cl INT, OUT nc TEXT) AS $$
 BEGIN
-    SELECT array_to_string(ARRAY(SELECT substr('ABXYLRNSWE', floor(random()*10)::int+1, 1) FROM generate_series(1,10)), '') INTO nc;
+    SELECT array_to_string(ARRAY(SELECT substr('ABXYLRNSWE', floor(random()*cl)::int+1, 1) FROM generate_series(1,cl)), '') INTO nc;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION add_jumpcode_tr_func() RETURNS trigger AS $$
 DECLARE
     j_invalid BOOL = true;
+    cl INT = 10;
+    tn TEXT = TG_TABLE_NAME::regclass::TEXT;
 BEGIN
+    IF tn = 'users' THEN
+        cl := 7;
+    ELSE IF tn = 'channels' THEN
+        cl := 5;
+    END IF;
     WHILE j_invalid LOOP
         BEGIN
-            INSERT INTO jumpcodes(code, type, id) VALUES (random_jumpcode(), cast(trim(trailing 's' from TG_TABLE_NAME::regclass::TEXT) AS jump_resource), NEW.id);
+            INSERT INTO jumpcodes(code, type, id) VALUES (random_jumpcode(cl), cast(trim(trailing 's' from tn) AS jump_resource), NEW.id);
             j_invalid := false;
         EXCEPTION WHEN unique_violation THEN
             -- try again

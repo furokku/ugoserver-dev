@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"image"
 	"io"
 	"os"
 	"time"
@@ -10,12 +11,11 @@ import (
 
 	"net/http"
 
-	"image"
 	"image/color/palette"
+	"image/png"
 
 	"github.com/KononK/resize"
 	"github.com/esimov/colorquant"
-
 	"github.com/gorilla/mux"
 
 	"encoding/binary"
@@ -28,6 +28,10 @@ import (
 
 const (
     MSG_MOVIE_RATELIMIT string = "rate limit message: %s"
+)
+
+var (
+    no_compression = png.Encoder{ CompressionLevel: png.NoCompression, }
 )
 
 
@@ -132,14 +136,14 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
     }
     
     // make sure the ppm isn't some bullshit
-    if lp := len(ppm); lp < 0x730 { // 0x730 is an arbitrary number that I chose
-        // but I think it'll work fine at weeding out any bad requests
-        errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lp)
-        w.WriteHeader(http.StatusBadRequest)
-        return
-    }
+    // if lp := len(ppm); lp < 0x730 { // 0x730 is an arbitrary number that I chose
+    //     // but I think it'll work fine at weeding out any bad requests
+    //     errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lp)
+    //     w.WriteHeader(http.StatusBadRequest)
+    //     return
+    // }
     
-    if err := verifyrsa(ppm); err != nil {
+    if err := e.verifyrsa(ppm); err != nil {
         errorlog.Printf("signature failed: %v", err)
         w.WriteHeader(http.StatusBadRequest)
         return
@@ -179,7 +183,7 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
 
 //  debuglog.Printf("received ppm body from %v %v %v", session.fsid, session.username, afn)
     tx, _ := e.pool.Begin(context.Background())
-    defer tx.Commit(context.Background())
+    defer tx.Rollback(context.Background())
 
     id, err := addMovie(tx, nm)
     if err != nil {
@@ -189,6 +193,7 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
             w.Write(encUTF16LE("this flipnote has\nalready been uploaded"))
             return
         default:
+            debuglog.Printf("tx rollback")
             errorlog.Printf("while adding flipnote: %v", err)
             debuglog.Println(nm)
             w.WriteHeader(http.StatusInternalServerError)
@@ -203,8 +208,7 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
         // >> store by id to not allow filename clashes
         // this isn't really an issue and i was being dumb because
         // all filenames are unique. But i like this more
-        tx.Rollback(context.Background())
-        infolog.Printf("transaction rollback")
+        debuglog.Printf("transaction rollback")
 
         errorlog.Printf("while opening path to ppm: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -214,8 +218,7 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
     defer fp.Close()
 
     if _, err := fp.Write(ppm); err != nil {
-        tx.Rollback(context.Background())
-        infolog.Printf("transaction rollback")
+        debuglog.Printf("transaction rollback")
 
         errorlog.Printf("while writing ppm to file: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
@@ -223,6 +226,8 @@ func (e *env) moviePost(w http.ResponseWriter, r *http.Request) {
     }
     
     infolog.Printf("%v (%v) uploaded flipnote %v", s.Username, s.FSID, nm.AuFN)
+    
+    tx.Commit(context.Background())
     w.WriteHeader(http.StatusOK)
 }
 
@@ -327,28 +332,77 @@ func (e *env) movieFeed(w http.ResponseWriter, r *http.Request) {
 // COMMENTS/REPLIES
 //
 
+// give the ds an npf that it wants
 func (e *env) replyHandler(w http.ResponseWriter, r *http.Request) {
     //s := e.sessions[sid]
     vars := mux.Vars(r)
 
-    switch vars["ext"] {
-    case "npf":
-        id, err := strconv.Atoi(vars["commentid"])
-        if err != nil {
-            w.WriteHeader(http.StatusNotFound)
-            return
-        }
-        
-        // get the file
-        npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id))
-        if err != nil {
-            errorlog.Printf("while reading reply %d file: %v", id, err)
-            w.WriteHeader(http.StatusInternalServerError)
-            return
-        }
-        
-        w.Write(npf)
+    id, err := strconv.Atoi(vars["commentid"])
+    if err != nil {
+        w.WriteHeader(http.StatusNotFound)
+        return
     }
+    
+    // i think do dimensions here right away
+    // so that they can be more easily tweaked in the ui
+    npfw, err := strconv.Atoi(r.URL.Query().Get("w"))
+    if err != nil || npfw < 0 { // come on
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    npfh, err := strconv.Atoi(r.URL.Query().Get("h"))
+    if err != nil || npfh < 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    // conank/resize has some handy auto-aspect ratio stuff
+    // but make sure only one is =0 at a time
+    if npfh == 0 && npfw == 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    // get the file
+    // npf, err := os.ReadFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id))
+    // if err != nil {
+    //     errorlog.Printf("while reading reply %d file: %v", id, err)
+    //     w.WriteHeader(http.StatusInternalServerError)
+    //     return
+    // }
+    
+    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.png", e.cnf.StoreDir, id), os.O_RDONLY, 0644)
+    if err != nil {
+        errorlog.Printf("while getting source png for comment %d: %v", id, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    defer fp.Close()
+    
+    pim, err := png.Decode(fp)
+    if err != nil {
+        errorlog.Printf("while decoding png for comment %d: %v", id, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // scale image
+    pimsc := resize.Resize(uint(npfw), uint(npfh), pim, resize.NearestNeighbor)
+    
+    // oooo quantize
+    dst := image.NewPaletted(pimsc.Bounds(), palette.WebSafe)
+    colorquant.NoDither.Quantize(pimsc, dst, 15, false, true)
+    
+    // finally: convert to npf for ds
+    npf, err := nx.ToNpf(dst)
+    if err != nil {
+        errorlog.Printf("while converting png to npf for comment %d: %v", id, err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+    
+    w.Write(npf)
 }
 
 // replyPost handler handles requests for .npf (reply image data) and .reply (commenting on a movie)
@@ -370,14 +424,15 @@ func (e *env) replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // make sure the reply isn't some bullshit
-    if lr := len(reply); lr < 0x730 {
-        errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lr)
-        w.WriteHeader(http.StatusBadRequest)
-        return
-    }
+    // > make sure the reply isn't some bullshit
+    // this is already checked in verifyrsa...
+    // if lr := len(reply); lr < 0x730 {
+    //     errorlog.Printf("bogus ppm from %s (%d): %dbytes", s.Username, s.UserID, lr)
+    //     w.WriteHeader(http.StatusBadRequest)
+    //     return
+    // }
     
-    if err := verifyrsa(reply); err != nil {
+    if err := e.verifyrsa(reply); err != nil {
         errorlog.Printf("signature failed: %v", err)
         w.WriteHeader(http.StatusBadRequest)
         return
@@ -398,50 +453,70 @@ func (e *env) replyPost(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    // Convert to npf
-    // Quantizer is needed because while downsizing the image it introduces lots of other colors
-    src := resize.Resize(64, 48, im[0], resize.NearestNeighbor)
-    dst := image.NewPaletted(src.Bounds(), palette.WebSafe)
+    // // Convert to npf
+    // // Quantizer is needed because while downsizing the image it introduces lots of other colors
+    // src := resize.Resize(64, 48, im[0], resize.NearestNeighbor)
+    // dst := image.NewPaletted(src.Bounds(), palette.WebSafe)
 
-    colorquant.NoDither.Quantize(src, dst, 15, false, true)
+    // colorquant.NoDither.Quantize(src, dst, 15, false, true)
 
-    npf, err := nx.ToNpf(dst)
-    if err != nil {
-        errorlog.Printf("while converting reply to npf: %v", err)
-        return
-    }
-    
+    // npf, err := nx.ToNpf(dst)
+    // if err != nil {
+    //     errorlog.Printf("while converting reply to npf: %v", err)
+    //     return
+    // }
+    // 
     // undo if can't write file
     tx, _ := e.pool.Begin(context.Background())
-    defer tx.Commit(context.Background())
+    defer tx.Rollback(context.Background())
 
     id, err := addMovieCommentMemo(tx, s.UserID, movieid)
     if err != nil {
+        debuglog.Printf("tx rollback")
         errorlog.Printf("while adding movie reply to database: %v", err)
         return
     }
     
-    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.png", e.cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
     if err != nil {
-        tx.Rollback(context.Background())
-        infolog.Printf("transaction rollback")
-
-        errorlog.Printf("while opening path to reply npf: %v", err)
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
-
-    defer fp.Close()
-
-    if _, err := fp.Write(npf); err != nil {
-        tx.Rollback(context.Background())
-        infolog.Printf("transaction rollback")
-
-        errorlog.Printf("while writing reply npf to file: %v", err)
+        debuglog.Printf("tx rollback")
+        errorlog.Printf("on call to OpenFile: %v", err)
         w.WriteHeader(http.StatusInternalServerError)
         return
     }
     
+    defer fp.Close()
+
+    if err := no_compression.Encode(fp, im[0]); err != nil {
+        debuglog.Printf("tx rollback")
+        errorlog.Printf("while encoding reply: %v", err)
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // 
+    // fp, err := os.OpenFile(fmt.Sprintf("%s/comments/%d.npf", e.cnf.StoreDir, id), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+    // if err != nil {
+    //     tx.Rollback(context.Background())
+    //     infolog.Printf("transaction rollback")
+
+    //     errorlog.Printf("while opening path to reply npf: %v", err)
+    //     w.WriteHeader(http.StatusInternalServerError)
+    //     return
+    // }
+
+    // defer fp.Close()
+
+    // if _, err := fp.Write(npf); err != nil {
+    //     tx.Rollback(context.Background())
+    //     infolog.Printf("transaction rollback")
+
+    //     errorlog.Printf("while writing reply npf to file: %v", err)
+    //     w.WriteHeader(http.StatusInternalServerError)
+    //     return
+    // }
+    
+    tx.Commit(context.Background())
     w.WriteHeader(http.StatusOK)
 }
 

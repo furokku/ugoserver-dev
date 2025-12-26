@@ -1,16 +1,18 @@
 package main
 
 import (
+	"crypto/rsa"
+
 	"context"
-	"html/template"
-	"net"
-	"net/http"
 	"sync"
 	"time"
 
+	"html/template"
+	"net"
+	"net/http"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type (
@@ -35,15 +37,18 @@ type (
     }
 
     dbhandle interface {
+        Begin(ctx context.Context) (pgx.Tx, error)
+        Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
         Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
         QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-        Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
     }
     
+    // di yay
     env struct {
         sessions map[string]*Session
-        pool *pgxpool.Pool // use when transactions aren't necessary
+        pool dbhandle // database connection pool
         cnf *Configuration // from config.json containing global options
+        fnkey *rsa.PublicKey // flipnote signing key
         
         // add a mutex of sorts so that these arent modified mid-access
         html *template.Template // html templates

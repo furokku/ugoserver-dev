@@ -4,5 +4,6 @@ config.json
 nginx.conf
 dnsmasq.conf
 
+xtra/
 bin/
 go.sum

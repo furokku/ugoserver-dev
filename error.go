@@ -19,4 +19,5 @@ var (
     ErrNoMovie = errors.New("movie with such id does not exist")
     ErrMovieExists = errors.New("flipnote already exists on server")
     ErrNotRsaPubKey = errors.New("type assertion for rsa pubkey failed (this is not an rsa key)")
+    ErrInvalidPpmLength = errors.New("invalid ppm (too small)")
 )

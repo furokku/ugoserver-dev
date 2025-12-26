@@ -88,11 +88,16 @@
                 <td width="136">
                     <div class="item-value" align="right">
                         {{range $index, $results := .movie.Stars}}
+                        {{if eq $index 0}}
+                        <span class="star0c">★</span>
+                        <span class="star0">{{.}}</span>
+                        {{else if ne . 0}}
                         <span class="star{{$index}}c">★</span>
                         <span class="star{{$index}}">{{.}}</span>
-                        {{if ne $index 4}}
-                        <br>
                         {{end}}
+                        <!--{{if ne $index 4}}
+                        <br>
+                        {{end}}-->
                         {{end}}
                     </div>
                 </td>
@@ -138,7 +143,7 @@
                     <div class="item-term" align="left">Last Updated</div>
                 </th>
                 <td width="136">
-                    <div class="item-value" align="right">{{.movie.LastMod}}</div>
+                    <div class="item-value" align="right">{{.movie.LastMod.Format "2006-01-02 15:04"}}</div>
                 </td>
             </tr>
             <tr>
