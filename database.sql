@@ -109,7 +109,7 @@ BEGIN
     END IF;
     
     -- check if the user giving the stars isnt the author
-    SELECT author_userid INTO mauid FROM movies WHERE id = update_movie_stars.userid;
+    SELECT author_userid INTO mauid FROM movies WHERE id = update_movie_stars.movieid;
     IF mauid = userid THEN
         RAISE EXCEPTION 'author cannot star own movie (big ego ahh)';
     END IF;

@@ -88,6 +88,8 @@ func (s *ipcListener) ipc(id int, conn net.Conn, c cmdHandler) {
         }
         req := string(buf[:n])
 
+        infolog.Printf("ipc: %d ran %v", id, req)
+
         args := strings.Split(req, " ")
         if len(args) == 0 {
             resp = "ok"
@@ -100,7 +102,6 @@ func (s *ipcListener) ipc(id int, conn net.Conn, c cmdHandler) {
                 resp = fmt.Sprintf("%s: %s (%dms)", args[0], f(args[1:]), time.Since(s).Milliseconds())
             }
         }
-        infolog.Printf("ipc: %d ran %v", id, req)
         io.WriteString(conn, resp)
     }
 }
