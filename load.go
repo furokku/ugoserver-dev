@@ -109,7 +109,7 @@ func (e *env) load_assets(reload bool) error {
     }
 
     a := make(map[string][]byte)
-    fs.WalkDir(os.DirFS(e.cnf.Dir), "assets", walktomap(&a))
+    fs.WalkDir(os.DirFS(e.cnf.Dir + "/assets"), ".", walktomap(&a))
 
     e.assets = a
     infolog.Printf("load_assets: loaded %d other assets", len(e.assets))
@@ -207,14 +207,14 @@ func walktomap(m *map[string][]byte) (fs.WalkDirFunc) {
             return nil // ignore directories
         }
         
-        shortpath, _ := strings.CutPrefix(path, "assets/")
+        //shortpath, _ := strings.CutPrefix(path, "assets/")
         fc, err := os.ReadFile(path)
         if err != nil {
             errorlog.Printf("walktomap: failed to read %s: %v; skipping...", path, err)
             return nil
         }
         
-        (*m)[shortpath] = fc // key short path (i.e. images/cat.npf) to file contents
+        (*m)[path] = fc // no longer needed: key short path (i.e. images/cat.npf) to file contents
 
         return nil
     }

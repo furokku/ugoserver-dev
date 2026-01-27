@@ -276,7 +276,7 @@ func (e *env) fillpage(sid string) (map[string]interface{}, error) {
     }
 
     d["session"] = s
-    d["user"] = u // shouldn't matter if this is uninitialized, always check session.isloggedin beforehand
+    d["user"] = u // shouldn't matter if this is uninitialized, always check session.isloggedin or userid==0 beforehand
     d["userprefs"] = nil // TODO
     d["root"] = e.cnf.Root
     d["region"] = s.Region
