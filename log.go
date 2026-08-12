@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 )
 
 var (
@@ -42,7 +43,7 @@ func (e *env) logger(next http.Handler) http.Handler {
         ua := r.Header.Get("User-Agent")
 
         // ignore bots and etc.
-        if e.cnf.UseHosts && r.URL.Path != "/robots.txt" {
+        if e.cnf.UseHosts && r.URL.Path != "/robots.txt" && !strings.HasPrefix(r.URL.Path, "/ui") {
             if !slices.Contains(e.cnf.Hosts, r.Host) ||
                (ua != "" && ua != "Nitro WiFi SDK/5.1") {
                 w.Write([]byte("you may not access this resource in this way"))
