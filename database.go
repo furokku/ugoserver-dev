@@ -513,7 +513,7 @@ func verifyUserById(db dbhandle, userid int, password string, ip... string) (boo
     if err := db.QueryRow(context.Background(), SQL_USER_VERIFY_BY_ID, userid, password).Scan(&v); err != nil {
         return false, err
     }
-    if len(ip)>0 {
+    if v && len(ip)>0 {
         if _, err := db.Exec(context.Background(), SQL_USER_UPDATE_LAST_LOGIN_BY_ID, userid, ip[0]); err != nil {
             return false, err
         }
